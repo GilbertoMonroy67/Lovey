@@ -168,7 +168,7 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 - [x] Definir el propósito y funcionalidades de la aplicación
 - [x] Elegir el stack tecnológico
 - [x] Contrato de integración frontend/backend (`docs/arquitectura.md`)
-- [ ] Inicializar git y crear el repositorio en GitHub (usuario)
+- [x] Inicializar git y crear el repositorio en GitHub (`GilbertoMonroy67/Lovey`, 2026-10-09)
 - [x] Crear `.gitignore`, `.nojekyll` y `js/limites.js` (arquitecto)
 - [x] `README.md` (arquitecto)
 - [x] F1: base del frontend + `config.js` + `api.js` / `api-mock.js` (frontend)
@@ -243,4 +243,7 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 - `js/config.js` apunta a la API de producción; `og:image` es absoluta (`https://gilbertomonroy67.github.io/Lovey/assets/og-imagen.png`).
 - Prueba de punta a punta en producción: 11/11 (foto en R2, propuesta en D1, `si`, `celebracion_elegida`, panel 200/401, DELETE en cascada con 404 posterior). Los datos de prueba se borraron.
 - Revisión de seguridad: ningún secreto en archivos versionables; la sesión de Wrangler vive en `~/.config/.wrangler/`, fuera del repo.
-- Siguiente paso: `git init`, revisar la lista de archivos antes del primer push, crear el repo `Lovey` en GitHub y activar GitHub Pages.
+- Git: repo `git@github.com:GilbertoMonroy67/Lovey.git`, rama `main`. Commits firmados con el correo privado `128734942+GilbertoMonroy67@users.noreply.github.com` (configurado solo en este repo). Push por SSH.
+- Antes del primer push se revisaron los 68 archivos: `api/.dev.vars`, `api/.wrangler/` y `node_modules/` quedan fuera; sin llaves en el contenido.
+- GitHub Pages activo en **https://gilbertomonroy67.github.io/Lovey/**: todas las páginas y recursos responden 200, `api/.dev.vars` responde 404 y la API acepta el origen de Pages (CORS).
+- Siguiente paso: prueba manual en celulares reales (`docs/arquitectura.md` §10) y B6 (límites con `ratelimits`).
