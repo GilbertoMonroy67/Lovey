@@ -1,0 +1,67 @@
+/* Plantilla: Kawaii
+   Pasteles, carita tierna y rebotes exagerados. Baloo 2. */
+[data-plantilla="kawaii"] {
+  color-scheme: light;
+  --color-fondo: #fff0f6;
+  --fondo:
+    radial-gradient(#ffcfe2 2px, transparent 2.6px) 0 0 / 26px 26px,
+    radial-gradient(#c9f2e6 2px, transparent 2.6px) 13px 13px / 26px 26px,
+    linear-gradient(180deg, #fff4f9 0%, #fde6f2 100%);
+  --color-superficie: #ffffff;
+  --fondo-tarjeta: #ffffff;
+  --color-superficie-2: #fff4f9;
+  --color-borde: #ffc7dd;
+  --color-texto: #5a2a5c;
+  --color-texto-suave: #7d4a80;
+  --color-primario: #c2306b;
+  --color-primario-hover: #a8245a;
+  --color-primario-texto: #ffffff;
+  --color-secundario: #d4f5ec;
+  --color-secundario-texto: #1f5c4d;
+  --color-borde-no: #8fdcc6;
+  --color-acento: #ff8fb8;
+  --color-acento-texto: #c2306b;
+  --color-foco: #4a3aff;
+
+  --fuente-titulo: "Baloo 2", "Comic Sans MS", system-ui, sans-serif;
+  --fuente-texto: "Baloo 2", system-ui, sans-serif;
+  --peso-titulo: 800;
+
+  --radio: 32px;
+  --borde-tarjeta: 4px solid #ffc7dd;
+  --sombra: 0 10px 0 #ffd6e7, 0 22px 40px rgb(194 48 107 / 0.15);
+  --sombra-boton: 0 6px 0 #8f1f4c;
+
+  --deco-simbolo: "♡";
+  --deco-color: #ff6fa3;
+  --deco-animacion: rebotar;
+  --deco-duracion: 2.8s;
+  --deco-tamano: 1.7rem;
+  --emblema: "🐰";
+}
+
+/* Carita tierna asomándose por encima de la tarjeta. */
+[data-plantilla="kawaii"] .tarjeta { margin-top: 1.6rem; }
+[data-plantilla="kawaii"] .tarjeta::before {
+  content: "ʕ•ᴥ•ʔ";
+  position: absolute;
+  top: -2.1rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #c2306b;
+}
+/* Rebote exagerado del "Sí" (usa `translate`, que se compone con su scale). */
+[data-plantilla="kawaii"] .boton-si { animation: kawaii-salto 2.2s ease-in-out infinite; }
+[data-plantilla="kawaii"] .boton-si:active { box-shadow: 0 2px 0 #8f1f4c; }
+@keyframes kawaii-salto {
+  0%, 60%, 100% { translate: 0 0; }
+  70% { translate: 0 -10px; }
+  80% { translate: 0 0; }
+  88% { translate: 0 -4px; }
+}
+[data-plantilla="kawaii"] .boton-no-suelto {
+  transition: transform 420ms cubic-bezier(.68,-0.6,.32,1.6);
+}

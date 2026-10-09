@@ -1,0 +1,3 @@
+# Copia este archivo como .dev.vars (está en .gitignore) y cambia los valores.
+# En producción: npx wrangler secret put SAL_IP
+SAL_IP=cambia-esto-por-un-texto-aleatorio-largo

@@ -1,0 +1,60 @@
+/* Plantilla: Retro 8-bit
+   Videojuego pixel art; el "No" es un enemigo que escapa. Press Start 2P + VT323. */
+[data-plantilla="retro"] {
+  color-scheme: dark;
+  --color-fondo: #1a1c2c;
+  --fondo:
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px) 0 0 / 8px 8px,
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px) 0 0 / 8px 8px,
+    linear-gradient(180deg, #1a1c2c 0%, #29366f 100%);
+  --color-superficie: #262b44;
+  --fondo-tarjeta: #262b44;
+  --color-superficie-2: #333c57;
+  --color-borde: #94b0c2;
+  --color-texto: #f4f4f4;
+  --color-texto-suave: #c0cbdc;
+  --color-primario: #38b764;
+  --color-primario-hover: #4fd17c;
+  --color-primario-texto: #0b0f1a;
+  --color-secundario: #b13e53;
+  --color-secundario-texto: #ffffff;
+  --color-borde-no: #f4f4f4;
+  --color-acento: #ffcd75;
+  --color-acento-texto: #ffcd75;
+  --color-foco: #ffcd75;
+  --color-aviso: #333c57;
+  --color-aviso-texto: #ffcd75;
+
+  --fuente-titulo: "Press Start 2P", ui-monospace, monospace;
+  --fuente-texto: "VT323", ui-monospace, monospace;
+  --fuente-boton: "Press Start 2P", ui-monospace, monospace;
+  --peso-titulo: 400;
+  --escala-titulo: 0.6;
+
+  --radio: 0;
+  --radio-boton: 0;
+  --borde-tarjeta: 4px solid #f4f4f4;
+  --sombra: 8px 8px 0 #0b0f1a;
+  --sombra-boton: 4px 4px 0 #0b0f1a;
+
+  --deco-simbolo: "■";
+  --deco-color: #ffcd75;
+  --deco-animacion: titilar;
+  --deco-duracion: 2.4s;
+  --deco-tamano: 0.9rem;
+  --emblema: "🏆";
+}
+
+[data-plantilla="retro"] .titulo-pregunta,
+[data-plantilla="retro"] .titulo-secundario,
+[data-plantilla="retro"] .titulo-final { line-height: 1.45; }
+[data-plantilla="retro"] .texto-paso { font-size: clamp(1.45rem, 5.5vw, 1.8rem); line-height: 1.3; }
+[data-plantilla="retro"] .boton { font-size: 0.75rem; line-height: 1.5; }
+[data-plantilla="retro"] .boton-si { font-size: 1rem; }
+[data-plantilla="retro"] .mini-botones span { font-size: 0.55rem; }
+/* El "No" es un enemigo. */
+[data-plantilla="retro"] .boton-no::before,
+[data-plantilla="retro"] .mini-no::before { content: "👾"; margin-right: 0.5em; font-family: system-ui, sans-serif; }
+[data-plantilla="retro"] .boton-no-suelto { transition: transform 200ms steps(4, end); }
+[data-plantilla="retro"] .saludo { font-size: 1.6rem; }
+[data-plantilla="retro"] .opcion-celebracion { font-size: 1.35rem; font-weight: 400; }

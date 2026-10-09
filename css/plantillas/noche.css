@@ -1,0 +1,63 @@
+/* Plantilla: Noche estrellada
+   Azul profundo, luna en CSS y estrellas que titilan. Playfair Display + Nunito. */
+[data-plantilla="noche"] {
+  color-scheme: dark;
+  --color-fondo: #0b1026;
+  --fondo:
+    radial-gradient(1.5px 1.5px at 12% 22%, #ffffff 50%, transparent 52%),
+    radial-gradient(1px 1px at 32% 68%, #ffffff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 58% 14%, #fff6d5 50%, transparent 52%),
+    radial-gradient(1px 1px at 76% 46%, #ffffff 50%, transparent 52%),
+    radial-gradient(1px 1px at 90% 82%, #ffffff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 44% 88%, #dfe4ff 50%, transparent 52%),
+    radial-gradient(ellipse at 50% 120%, #3b3a7a 0, transparent 60%),
+    linear-gradient(180deg, #0b1026 0%, #151d45 55%, #232a5c 100%);
+  --color-superficie: #151c40;
+  --fondo-tarjeta: rgb(21 28 64 / 0.88);
+  --color-superficie-2: #1e2752;
+  --color-borde: #3a4684;
+  --color-texto: #f3f4ff;
+  --color-texto-suave: #c5cae9;
+  --color-primario: #ffd166;
+  --color-primario-hover: #ffdd8a;
+  --color-primario-texto: #1b1b2f;
+  --color-secundario: #232c5e;
+  --color-secundario-texto: #e3e6ff;
+  --color-borde-no: #5562ad;
+  --color-acento: #ffd166;
+  --color-acento-texto: #ffd166;
+  --color-foco: #8ecbff;
+  --color-aviso: #2c3570;
+  --color-aviso-texto: #fff3c4;
+
+  --fuente-titulo: "Playfair Display", Georgia, serif;
+  --fuente-texto: "Nunito", system-ui, sans-serif;
+  --peso-titulo: 600;
+  --estilo-titulo: italic;
+
+  --radio: 24px;
+  --borde-tarjeta: 1px solid rgb(255 255 255 / 0.14);
+  --sombra: 0 20px 60px rgb(0 0 0 / 0.5), 0 0 50px rgb(255 209 102 / 0.07);
+  --sombra-boton: 0 0 26px rgb(255 209 102 / 0.45);
+
+  --deco-simbolo: "✦";
+  --deco-color: #fff6d5;
+  --deco-animacion: titilar;
+  --deco-duracion: 4s;
+  --deco-tamano: 1.1rem;
+  --emblema: "🌙";
+}
+
+/* Luna creciente hecha con una sombra. */
+[data-plantilla="noche"] .decoracion::before {
+  content: "";
+  position: absolute;
+  top: 6%;
+  right: 9%;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  box-shadow: -1rem 0.7rem 0 0 #fff3c4;
+  filter: drop-shadow(0 0 18px rgb(255 243 196 / 0.45));
+}
+.mini-render[data-plantilla="noche"] .decoracion::before { width: 2.2rem; height: 2.2rem; box-shadow: -0.5rem 0.35rem 0 0 #fff3c4; }

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Respuestas · Noviazgo</title>
+  <meta name="theme-color" content="#c2185b">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="js/respuestas.js"></script>
+</head>
+<body class="pagina-app">
+  <p class="visualmente-oculto" aria-live="polite" id="anuncio"></p>
+
+  <header class="cabecera-app contenedor">
+    <p class="logo" aria-hidden="true">📬</p>
+    <h1 id="titulo-panel">Respuestas</h1>
+    <p id="subtitulo-panel">Aquí verás en vivo lo que pasa con tu sorpresa.</p>
+    <p id="aviso-demo" class="aviso-banda" hidden>Modo demostración: solo verás respuestas de este mismo navegador.</p>
+  </header>
+
+  <main class="contenedor">
+    <!-- Sin id o sin clave -->
+    <section class="seccion" id="sin-clave" hidden aria-labelledby="t-sin-clave">
+      <h2 id="t-sin-clave">Falta tu enlace privado</h2>
+      <p>Para ver las respuestas necesitas el enlace privado que obtuviste al crear la sorpresa (termina en <code>#k=…</code>).</p>
+      <div id="bloque-mis" hidden>
+        <p class="etiqueta">Propuestas creadas en este navegador:</p>
+        <ul class="lista-mis-propuestas" id="lista-mis-propuestas"></ul>
+      </div>
+      <a class="boton boton-primario" href="index.html">Crear una sorpresa</a>
+    </section>
+
+    <!-- Panel -->
+    <section class="seccion" id="panel" hidden aria-labelledby="t-resumen">
+      <div class="paso-cabecera">
+        <h2 id="t-resumen">Resumen</h2>
+        <p class="estado-conexion" id="estado-conexion" role="status">Conectando…</p>
+      </div>
+      <div class="resumen-panel" id="resumen"></div>
+    </section>
+
+    <section class="seccion" id="seccion-linea" hidden aria-labelledby="t-linea">
+      <h2 id="t-linea">Línea de tiempo</h2>
+      <ol class="linea-tiempo" id="linea-tiempo" aria-live="polite"></ol>
+      <p class="vacio" id="sin-eventos">Todavía no pasa nada. Comparte el enlace y espera aquí 💌</p>
+    </section>
+
+    <section class="seccion" id="seccion-enlaces" hidden aria-labelledby="t-enlaces">
+      <h2 id="t-enlaces">Enlaces</h2>
+      <div class="caja-enlace">
+        <label class="etiqueta" for="enlace-pareja">Enlace para tu pareja</label>
+        <input type="text" id="enlace-pareja" readonly>
+        <div class="botones-enlace">
+          <button type="button" class="boton boton-secundario" id="copiar-pareja">Copiar enlace</button>
+        </div>
+        <p class="confirmacion" id="confirmacion-pareja" aria-live="polite"></p>
+      </div>
+      <p class="ayuda" id="info-ntfy" hidden></p>
+      <p class="ayuda" id="info-expira"></p>
+      <div>
+        <button type="button" class="boton boton-peligro" id="boton-borrar">Borrar propuesta</button>
+      </div>
+    </section>
+
+    <section class="seccion" id="mensaje-final-panel" hidden role="alert">
+      <h2 id="t-final-panel"></h2>
+      <p id="texto-final-panel"></p>
+      <a class="boton boton-primario" href="index.html">Crear otra sorpresa</a>
+    </section>
+  </main>
+</body>
+</html>

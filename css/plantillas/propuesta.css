@@ -1,0 +1,58 @@
+/* Plantilla: Propuesta de matrimonio
+   Dorado y marfil, anillo y tono solemne. Cinzel + Cormorant Garamond. */
+[data-plantilla="propuesta"] {
+  color-scheme: light;
+  --color-fondo: #fbf7ef;
+  --fondo:
+    radial-gradient(circle at 50% 0%, #fffdf6 0, transparent 60%),
+    radial-gradient(circle at 50% 110%, #ead9ad 0, transparent 55%),
+    linear-gradient(180deg, #fbf7ef 0%, #f1e6cf 100%);
+  --color-superficie: #fffdf8;
+  --fondo-tarjeta: #fffdf8;
+  --color-superficie-2: #f8f1e2;
+  --color-borde: #ddc590;
+  --color-texto: #2d2414;
+  --color-texto-suave: #5e4b2b;
+  --color-primario: #8a6a1f;
+  --color-primario-hover: #6f5418;
+  --color-primario-texto: #ffffff;
+  --color-secundario: #fffdf8;
+  --color-secundario-texto: #5e4b2b;
+  --color-borde-no: #d8c08a;
+  --color-acento: #c9a227;
+  --color-acento-texto: #7a5c14;
+  --color-foco: #1f4e8c;
+
+  --fuente-titulo: "Cinzel", "Trajan Pro", Georgia, serif;
+  --fuente-texto: "Cormorant Garamond", Georgia, serif;
+  --peso-titulo: 600;
+  --espaciado-titulo: 0.04em;
+  --escala-titulo: 0.88;
+
+  --radio: 4px;
+  --radio-boton: 4px;
+  --borde-tarjeta: 1px solid #d8c08a;
+  --sombra: 0 22px 50px rgb(138 106 31 / 0.18);
+  --sombra-boton: 0 6px 18px rgb(138 106 31 / 0.35);
+
+  --deco-simbolo: "✦";
+  --deco-color: #c9a227;
+  --deco-animacion: titilar;
+  --deco-duracion: 5s;
+  --deco-tamano: 1.2rem;
+  --emblema: "💍";
+}
+
+/* Doble marco dorado. */
+[data-plantilla="propuesta"] .tarjeta,
+[data-plantilla="propuesta"] .mini-tarjeta {
+  outline: 1px solid #d8c08a;
+  outline-offset: -10px;
+}
+[data-plantilla="propuesta"] .mini-tarjeta { outline-offset: -5px; }
+[data-plantilla="propuesta"] .texto-paso { font-size: clamp(1.3rem, 5vw, 1.6rem); font-weight: 500; }
+[data-plantilla="propuesta"] .boton { letter-spacing: 0.06em; font-size: 1.05rem; }
+[data-plantilla="propuesta"] .boton-si {
+  background: linear-gradient(180deg, #9a7726 0%, #7a5c14 100%);
+  font-family: "Cinzel", Georgia, serif;
+}

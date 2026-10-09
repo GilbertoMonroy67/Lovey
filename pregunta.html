@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tienes una sorpresa 💌</title>
+  <meta name="description" content="Alguien preparó algo especial para ti. Ábrelo cuando tengas un momento a solas.">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#ffd6e2">
+  <!-- Open Graph: atractivo pero sin revelar la sorpresa. -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Tienes una sorpresa 💌">
+  <meta property="og:description" content="Alguien preparó algo especial para ti. Ábrelo cuando tengas un momento a solas.">
+  <meta property="og:image" content="https://gilbertomonroy67.github.io/Lovey/assets/og-imagen.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Un sobre con un corazón">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="js/pregunta.js"></script>
+</head>
+<body class="pagina-pregunta">
+  <div id="zona-segura" aria-hidden="true"></div>
+
+  <div class="escenario" id="escenario" data-plantilla="romantica">
+    <div class="decoracion" aria-hidden="true">
+      <span class="deco"></span><span class="deco"></span><span class="deco"></span><span class="deco"></span>
+      <span class="deco"></span><span class="deco"></span><span class="deco"></span><span class="deco"></span>
+    </div>
+
+    <p id="aviso-demo" class="aviso-banda" hidden>Modo demostración: los enlaces solo funcionan en este navegador.</p>
+    <p id="aviso-vista-previa" class="aviso-banda" hidden>Vista previa: así lo verá tu pareja. No se envía ninguna respuesta.</p>
+
+    <main class="tarjeta" id="tarjeta">
+      <p class="visualmente-oculto" aria-live="polite" id="anuncio"></p>
+
+      <section id="pantalla-cargando" class="pantalla pantalla-centrada">
+        <div class="cargador" aria-hidden="true"></div>
+        <h1 class="titulo-secundario" data-titulo tabindex="-1">Preparando tu sorpresa…</h1>
+      </section>
+
+      <section id="pantalla-error" class="pantalla pantalla-centrada" hidden>
+        <p class="emblema" aria-hidden="true">💔</p>
+        <h1 class="titulo-secundario" id="titulo-error" data-titulo tabindex="-1">No pudimos cargar tu sorpresa</h1>
+        <p class="texto-suave" id="mensaje-error"></p>
+        <button type="button" class="boton boton-primario" id="boton-reintentar">Reintentar</button>
+      </section>
+
+      <section id="pantalla-paso" class="pantalla" hidden>
+        <p class="saludo" id="saludo-paso">Para ti</p>
+        <ol class="progreso-pasos" id="progreso-pasos" aria-hidden="true"></ol>
+        <h1 class="visualmente-oculto" id="titulo-paso" data-titulo tabindex="-1">Paso 1</h1>
+        <p class="texto-paso" id="texto-paso"></p>
+        <div class="fotos" id="fotos-paso" hidden></div>
+        <div class="acciones-paso">
+          <button type="button" class="boton boton-fantasma" id="boton-atras">Atrás</button>
+          <button type="button" class="boton boton-primario" id="boton-siguiente">Siguiente</button>
+        </div>
+      </section>
+
+      <section id="pantalla-pregunta" class="pantalla pantalla-centrada" hidden>
+        <p class="saludo" id="saludo-pregunta"></p>
+        <h1 class="titulo-pregunta" id="titulo-pregunta" data-titulo tabindex="-1"></h1>
+        <div class="botones-respuesta">
+          <button type="button" class="boton boton-si" id="boton-si">¡Sí!</button>
+          <button type="button" class="boton boton-no" id="boton-no">No</button>
+        </div>
+      </section>
+
+      <section id="pantalla-celebracion" class="pantalla" hidden>
+        <form id="form-celebracion" class="form-celebracion" novalidate>
+          <p class="emblema" aria-hidden="true">🎉</p>
+          <h1 class="titulo-secundario" id="titulo-celebracion" data-titulo tabindex="-1">¿Dónde lo celebramos?</h1>
+          <p class="texto-suave">Elige una opción y te esperan ahí.</p>
+          <fieldset class="opciones-celebracion" id="opciones-celebracion" role="radiogroup"></fieldset>
+          <div class="campo">
+            <label for="nota">¿Algo más? <span class="texto-suave">(opcional)</span></label>
+            <textarea id="nota" name="nota" rows="2" aria-describedby="contador-nota"></textarea>
+            <span class="contador" id="contador-nota" aria-live="off">0 / 140</span>
+          </div>
+          <button type="submit" class="boton boton-primario boton-ancho" id="boton-enviar-celebracion" disabled>Enviar</button>
+        </form>
+      </section>
+
+      <section id="pantalla-final" class="pantalla pantalla-centrada" hidden>
+        <p class="emblema emblema-final" aria-hidden="true"></p>
+        <h1 class="titulo-final" id="titulo-final" data-titulo tabindex="-1"></h1>
+        <p class="detalle-final" id="detalle-final" hidden></p>
+        <p class="texto-suave" id="aviso-final"></p>
+        <button type="button" class="boton boton-fantasma" id="boton-ver-de-nuevo">Ver de nuevo</button>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

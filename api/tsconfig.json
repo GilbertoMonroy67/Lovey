@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "allowJs": true,
+    "checkJs": false,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "worker-configuration.d.ts", "../js/limites.js"]
+}

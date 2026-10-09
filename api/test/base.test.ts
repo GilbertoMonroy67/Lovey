@@ -1,0 +1,87 @@
+import { describe, expect, it } from 'vitest';
+import { LIMITES } from '../../js/limites.js';
+import { origenPermitido } from '../src/cors';
+import { base62, igualesTiempoConstante, sha256Hex } from '../src/ids';
+import { pedir } from './ayuda';
+
+describe('GET /salud y cabeceras', () => {
+  it('responde ok con cabeceras de seguridad', async () => {
+    const r = await pedir('/salud');
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true, version: 1 });
+    expect(r.headers.get('Content-Type')).toBe('application/json; charset=utf-8');
+    expect(r.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');
+    expect(r.headers.get('Cache-Control')).toBe('no-store');
+  });
+
+  it('ruta desconocida → 404 no_encontrado con formato uniforme', async () => {
+    const r = await pedir('/nada');
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ error: { codigo: 'no_encontrado', mensaje: expect.any(String) } });
+  });
+});
+
+describe('CORS', () => {
+  it('origen permitido recibe el origen exacto y Vary', async () => {
+    const r = await pedir('/salud', { headers: { Origin: 'https://ejemplo.github.io' } });
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBe('https://ejemplo.github.io');
+    expect(r.headers.get('Vary')).toContain('Origin');
+    expect(r.headers.get('Access-Control-Allow-Credentials')).toBeNull();
+  });
+
+  it('localhost con cualquier puerto se acepta', async () => {
+    const r = await pedir('/salud', { headers: { Origin: 'http://localhost:8000' } });
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:8000');
+  });
+
+  it('origen no permitido no recibe cabeceras CORS', async () => {
+    const r = await pedir('/salud', { headers: { Origin: 'https://malo.example' } });
+    expect(r.status).toBe(200);
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('preflight permitido → 204 con métodos, cabeceras y max-age', async () => {
+    const r = await pedir('/fotos', {
+      method: 'OPTIONS',
+      headers: { Origin: 'http://127.0.0.1:5500', 'Access-Control-Request-Method': 'POST' },
+    });
+    expect(r.status).toBe(204);
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBe('http://127.0.0.1:5500');
+    expect(r.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, DELETE, OPTIONS');
+    expect(r.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type, Authorization');
+    expect(r.headers.get('Access-Control-Max-Age')).toBe('86400');
+  });
+
+  it('preflight no permitido → 204 sin cabeceras CORS', async () => {
+    const r = await pedir('/propuestas', { method: 'OPTIONS', headers: { Origin: 'https://malo.example' } });
+    expect(r.status).toBe(204);
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('origenPermitido no acepta subcadenas ni http en otros hosts', () => {
+    expect(origenPermitido('https://ejemplo.github.io.malo.com', 'https://ejemplo.github.io')).toBe(false);
+    expect(origenPermitido('http://localhost.malo.com', '')).toBe(false);
+    expect(origenPermitido(undefined, 'https://ejemplo.github.io')).toBe(false);
+  });
+});
+
+describe('ids y límites compartidos', () => {
+  it('base62 genera la longitud y el alfabeto correctos', () => {
+    const id = base62(500);
+    expect(id).toMatch(/^[A-Za-z0-9]{500}$/);
+  });
+
+  it('sha256 y comparación en tiempo constante', async () => {
+    const h = await sha256Hex('abc');
+    expect(h).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(igualesTiempoConstante(h, h)).toBe(true);
+    expect(igualesTiempoConstante(h, h.slice(0, -1) + '0')).toBe(false);
+    expect(igualesTiempoConstante(h, '')).toBe(false);
+  });
+
+  it('el Worker usa js/limites.js (fuente única)', () => {
+    expect(LIMITES.fotoBytes).toBe(512000);
+    expect(LIMITES.diasExpiracion).toBe(30);
+  });
+});

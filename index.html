@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Noviazgo · Pídeselo de una forma inolvidable</title>
+  <meta name="description" content="Crea una sorpresa con palabras bonitas y fotos para pedirle a esa persona especial que sea tu pareja. El botón «No» huye.">
+  <meta name="theme-color" content="#c2185b">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Pídeselo de una forma inolvidable 💌">
+  <meta property="og:description" content="Palabras bonitas, fotos y una pregunta a la que no se puede decir que no.">
+  <meta property="og:image" content="https://gilbertomonroy67.github.io/Lovey/assets/og-imagen.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="js/generador.js"></script>
+</head>
+<body class="pagina-app">
+  <p class="visualmente-oculto" aria-live="polite" id="anuncio"></p>
+
+  <header class="cabecera-app contenedor">
+    <p class="logo" aria-hidden="true">💌</p>
+    <h1>Pídeselo de una forma inolvidable</h1>
+    <p>Escribe palabras bonitas, agrega fotos y hazle la gran pregunta. Spoiler: el «No» se escapa.</p>
+    <p id="aviso-demo" class="aviso-banda" hidden>Modo demostración: los enlaces solo funcionan en este navegador.</p>
+  </header>
+
+  <main class="contenedor">
+    <form id="form-generador" novalidate>
+      <!-- 1. Datos -->
+      <section class="seccion" aria-labelledby="t-datos">
+        <h2 id="t-datos"><span class="numero-seccion" aria-hidden="true">1</span> ¿Para quién es?</h2>
+        <div class="fila fila-2">
+          <div class="campo">
+            <label for="de">Tu nombre</label>
+            <input type="text" id="de" name="de" autocomplete="given-name" required aria-describedby="error-de" placeholder="Ej. Gilberto">
+            <span class="error-campo" id="error-de"></span>
+          </div>
+          <div class="campo">
+            <label for="para">Su nombre</label>
+            <input type="text" id="para" name="para" autocomplete="off" required aria-describedby="error-para" placeholder="Ej. Ana">
+            <span class="error-campo" id="error-para"></span>
+          </div>
+        </div>
+        <fieldset class="chips" id="tipos">
+          <legend>¿Qué le vas a pedir?</legend>
+          <label class="chip"><input type="radio" name="tipo" value="novia" checked><span>Que sea mi novia</span></label>
+          <label class="chip"><input type="radio" name="tipo" value="novio"><span>Que sea mi novio</span></label>
+          <label class="chip"><input type="radio" name="tipo" value="esposa"><span>Que sea mi esposa</span></label>
+          <label class="chip"><input type="radio" name="tipo" value="esposo"><span>Que sea mi esposo</span></label>
+          <label class="chip"><input type="radio" name="tipo" value="cita"><span>Una cita</span></label>
+          <label class="chip"><input type="radio" name="tipo" value="otro"><span>Otra cosa</span></label>
+        </fieldset>
+      </section>
+
+      <!-- 2. Plantilla -->
+      <section class="seccion" aria-labelledby="t-plantilla">
+        <h2 id="t-plantilla"><span class="numero-seccion" aria-hidden="true">2</span> Elige el estilo</h2>
+        <div class="chips" role="group" aria-label="Filtrar plantillas" id="filtros-plantilla">
+          <button type="button" class="chip-filtro" data-filtro="todas" aria-pressed="true">Todas</button>
+          <button type="button" class="chip-filtro" data-filtro="novia,novio" aria-pressed="false">Noviazgo</button>
+          <button type="button" class="chip-filtro" data-filtro="esposa,esposo" aria-pressed="false">Matrimonio</button>
+          <button type="button" class="chip-filtro" data-filtro="cita" aria-pressed="false">Cita</button>
+        </div>
+        <fieldset class="galeria" id="galeria" role="radiogroup" aria-labelledby="t-plantilla"></fieldset>
+      </section>
+
+      <!-- 3. Pasos -->
+      <section class="seccion" aria-labelledby="t-pasos">
+        <h2 id="t-pasos"><span class="numero-seccion" aria-hidden="true">3</span> Palabras bonitas y fotos</h2>
+        <p class="ayuda">Cada paso es una pantalla con un botón «Siguiente». Usa de 1 a 5 pasos para ir creando el momento.</p>
+        <ol class="lista-pasos" id="lista-pasos"></ol>
+        <button type="button" class="boton boton-fantasma" id="agregar-paso">+ Agregar otro paso</button>
+      </section>
+
+      <!-- 4. Pregunta -->
+      <section class="seccion" aria-labelledby="t-pregunta">
+        <h2 id="t-pregunta"><span class="numero-seccion" aria-hidden="true">4</span> La gran pregunta</h2>
+        <div class="campo">
+          <label for="pregunta">Pregunta</label>
+          <input type="text" id="pregunta" name="pregunta" required aria-describedby="error-pregunta">
+          <span class="error-campo" id="error-pregunta"></span>
+        </div>
+        <div class="campo">
+          <label for="mensaje-final">Mensaje cuando diga que sí <span class="texto-suave">(opcional)</span></label>
+          <textarea id="mensaje-final" name="mensajeFinal" rows="2" aria-describedby="contador-mensaje"></textarea>
+          <span class="contador" id="contador-mensaje"></span>
+        </div>
+      </section>
+
+      <!-- 5. Celebración -->
+      <section class="seccion" aria-labelledby="t-celebracion">
+        <h2 id="t-celebracion"><span class="numero-seccion" aria-hidden="true">5</span> ¿Dónde lo celebran?</h2>
+        <p class="ayuda">Cuando diga que sí, elegirá una de estas opciones. Si no marcas ninguna, se salta esta pantalla.</p>
+        <div class="campo">
+          <label for="titulo-celebracion">Título</label>
+          <input type="text" id="titulo-celebracion" name="tituloCelebracion" aria-describedby="error-titulo-celebracion">
+          <span class="error-campo" id="error-titulo-celebracion"></span>
+        </div>
+        <fieldset class="grupo">
+          <legend>Opciones sugeridas</legend>
+          <div class="opciones-generador" id="opciones-predefinidas"></div>
+        </fieldset>
+        <ul class="lista-personalizadas" id="lista-personalizadas" aria-label="Opciones personalizadas"></ul>
+        <div class="agregar-opcion">
+          <div class="campo">
+            <label for="emoji-opcion">Emoji</label>
+            <input type="text" id="emoji-opcion" placeholder="🎤" autocomplete="off">
+          </div>
+          <div class="campo">
+            <label for="texto-opcion">Otra opción</label>
+            <input type="text" id="texto-opcion" placeholder="Ej. Karaoke en el centro" autocomplete="off">
+          </div>
+          <button type="button" class="boton boton-secundario" id="agregar-opcion">Agregar</button>
+        </div>
+        <span class="error-campo" id="error-opciones" aria-live="polite"></span>
+        <p class="ayuda" id="contador-opciones"></p>
+      </section>
+
+      <!-- 6. Avisos -->
+      <section class="seccion" aria-labelledby="t-avisos">
+        <h2 id="t-avisos"><span class="numero-seccion" aria-hidden="true">6</span> Avisos</h2>
+        <label class="casilla">
+          <input type="checkbox" id="avisos-push" name="push">
+          <span>Notificarme en el celular con la app gratuita <strong>ntfy</strong> cuando lo abra, diga que sí y elija dónde celebrar.</span>
+        </label>
+        <p class="ayuda">Siempre podrás ver lo que pasa en tu enlace privado de respuestas.</p>
+      </section>
+
+      <div class="resumen-errores" id="resumen-errores" role="alert" tabindex="-1" hidden></div>
+
+      <div class="acciones-generador">
+        <button type="button" class="boton boton-fantasma" id="boton-vista-previa">👀 Vista previa</button>
+        <button type="submit" class="boton boton-primario" id="boton-crear">💌 Crear enlace</button>
+      </div>
+    </form>
+
+    <!-- Resultado -->
+    <section class="seccion resultado" id="resultado" aria-labelledby="t-resultado" hidden>
+      <h2 id="t-resultado" tabindex="-1">🎉 ¡Listo! Tu sorpresa está creada</h2>
+      <div class="caja-enlace">
+        <label class="etiqueta" for="enlace-pareja">Enlace para tu pareja</label>
+        <input type="text" id="enlace-pareja" readonly>
+        <div class="botones-enlace">
+          <button type="button" class="boton boton-primario" id="copiar-pareja">Copiar enlace</button>
+          <button type="button" class="boton boton-secundario" id="compartir-pareja" hidden>Compartir</button>
+          <a class="boton boton-fantasma" id="abrir-pareja" target="_blank" rel="noopener">Probarlo</a>
+        </div>
+        <p class="confirmacion" id="confirmacion-pareja" aria-live="polite"></p>
+      </div>
+      <div class="caja-enlace">
+        <label class="etiqueta" for="enlace-respuestas">Tu enlace privado de respuestas</label>
+        <p class="aviso-privado">🔒 No lo compartas: con él se ven las respuestas. Ábrelo en tu PC para ver en vivo cuando lo abra y lo que responda.</p>
+        <input type="text" id="enlace-respuestas" readonly>
+        <div class="botones-enlace">
+          <button type="button" class="boton boton-secundario" id="copiar-respuestas">Copiar enlace privado</button>
+          <a class="boton boton-fantasma" id="abrir-respuestas" target="_blank" rel="noopener noreferrer">Abrir panel</a>
+        </div>
+        <p class="confirmacion" id="confirmacion-respuestas" aria-live="polite"></p>
+      </div>
+      <div class="caja-enlace" id="caja-ntfy" hidden>
+        <p class="etiqueta">Avisos en tu celular</p>
+        <p class="ayuda">Instala la app <strong>ntfy</strong> y suscríbete a este tema (es secreto, no lo compartas):</p>
+        <input type="text" id="tema-ntfy" readonly aria-label="Tema de ntfy">
+        <div class="botones-enlace">
+          <a class="boton boton-fantasma" id="abrir-ntfy" target="_blank" rel="noopener noreferrer">Abrir en ntfy</a>
+        </div>
+      </div>
+      <p class="ayuda" id="expira"></p>
+      <button type="button" class="boton boton-fantasma" id="crear-otra">Crear otra sorpresa</button>
+    </section>
+
+    <!-- Mis propuestas -->
+    <section class="seccion" id="mis-propuestas" aria-labelledby="t-mis" hidden>
+      <h2 id="t-mis">Mis propuestas <span class="texto-suave">(en este navegador)</span></h2>
+      <ul class="lista-mis-propuestas" id="lista-mis-propuestas"></ul>
+    </section>
+  </main>
+
+  <footer class="pie contenedor">
+    <p>Hecho con 💖. No hace falta registrarse. Las sorpresas se borran solas a los 30 días.</p>
+  </footer>
+</body>
+</html>

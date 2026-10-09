@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "noviazgo-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+
+  // Limpieza diaria de propuestas expiradas, fotos huérfanas y contadores viejos (docs/arquitectura.md §5.6).
+  "triggers": { "crons": ["0 4 * * *"] },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "noviazgo",
+      // Id de la base remota (creada el 2026-10-09 con `npx wrangler d1 create noviazgo`).
+      "database_id": "ebb98293-1c9e-449e-806d-389010d2a4b2",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    { "binding": "FOTOS", "bucket_name": "noviazgo-fotos" }
+  ],
+
+  "vars": {
+    // Orígenes del frontend separados por comas (ej. "https://usuario.github.io").
+    // localhost y 127.0.0.1 se aceptan siempre (ver src/cors.ts).
+    "ORIGENES_PERMITIDOS": "https://gilbertomonroy67.github.io",
+    // Servidor ntfy para los avisos push opcionales. Vacío = desactivado.
+    "NTFY_BASE": "https://ntfy.sh"
+  }
+  // Secretos (no van aquí): SAL_IP → `npx wrangler secret put SAL_IP`; en local, archivo .dev.vars.
+}

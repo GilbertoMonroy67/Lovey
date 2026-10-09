@@ -1,0 +1,72 @@
+/* Plantilla: Carta vintage
+   Papel envejecido, sello de cera y letra manuscrita. Caveat + Lora. */
+[data-plantilla="vintage"] {
+  color-scheme: light;
+  --color-fondo: #e6d6b4;
+  --fondo:
+    radial-gradient(ellipse at center, transparent 55%, rgb(110 70 25 / 0.28) 100%),
+    repeating-linear-gradient(0deg, rgb(120 90 40 / 0.035) 0 2px, transparent 2px 5px),
+    linear-gradient(135deg, #efe3c8 0%, #e0cca2 100%);
+  --color-superficie: #fbf3df;
+  --fondo-tarjeta: linear-gradient(180deg, #fdf7e6 0%, #f5e8cb 100%);
+  --color-superficie-2: #f3e6c8;
+  --color-borde: #cdb48a;
+  --color-texto: #3b2a1a;
+  --color-texto-suave: #6b4f33;
+  --color-primario: #8b1e1e;
+  --color-primario-hover: #6f1616;
+  --color-primario-texto: #fff8ec;
+  --color-secundario: #f6ecd4;
+  --color-secundario-texto: #3b2a1a;
+  --color-borde-no: #a88b5e;
+  --color-acento: #8b1e1e;
+  --color-acento-texto: #8b1e1e;
+  --color-foco: #1f4e8c;
+
+  --fuente-titulo: "Caveat", "Segoe Script", "Bradley Hand", cursive;
+  --fuente-texto: "Lora", Georgia, serif;
+  --peso-titulo: 700;
+  --escala-titulo: 1.25;
+
+  --radio: 6px;
+  --radio-boton: 8px;
+  --borde-tarjeta: 1px solid #d8c29a;
+  --sombra: 0 2px 0 #d8c29a, 0 16px 40px rgb(80 50 20 / 0.28);
+  --sombra-boton: 0 4px 10px rgb(80 20 20 / 0.3);
+  --borde-foto: 8px solid #fffaf0;
+  --sombra-foto: 0 6px 16px rgb(60 40 10 / 0.25);
+
+  --deco-simbolo: "✿";
+  --deco-color: #a33a3a;
+  --deco-animacion: mecer;
+  --deco-duracion: 7s;
+  --deco-tamano: 1.5rem;
+  --emblema: "💌";
+}
+
+/* Sello de cera sobre la carta. */
+[data-plantilla="vintage"] .tarjeta { margin-top: 1.8rem; }
+[data-plantilla="vintage"] .tarjeta::after,
+[data-plantilla="vintage"] .mini-tarjeta::after {
+  content: "♥";
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  display: grid;
+  place-items: center;
+  border-radius: 46% 54% 50% 50%;
+  background: radial-gradient(circle at 35% 30%, #c0392b 0%, #8b1e1e 55%, #5e0f0f 100%);
+  color: #f3c9bc;
+  font-size: 1.4rem;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.35), inset 0 0 0 4px rgb(0 0 0 / 0.14);
+}
+[data-plantilla="vintage"] .mini-tarjeta::after {
+  top: -14px; width: 28px; height: 28px; margin-left: -14px; font-size: 0.75rem;
+}
+/* Fotos como polaroids ligeramente giradas. */
+[data-plantilla="vintage"] .foto:nth-child(odd) { rotate: -1.5deg; }
+[data-plantilla="vintage"] .foto:nth-child(even) { rotate: 1.5deg; }
+[data-plantilla="vintage"] .texto-paso { font-style: italic; }
