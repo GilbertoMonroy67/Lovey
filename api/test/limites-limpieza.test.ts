@@ -66,7 +66,7 @@ describe('limpieza programada', () => {
     const fotoUsada = (await (await subirFoto()).json()) as { id: string };
     const huerfanaVieja = (await (await subirFoto()).json()) as { id: string };
     const huerfanaNueva = (await (await subirFoto()).json()) as { id: string };
-    const vieja = await crearPropuesta({ pasos: [{ texto: 'a', fotos: [{ id: fotoUsada.id }] }] });
+    const vieja = await crearPropuesta({ fotos: [fotoUsada.id] });
     const vigente = await crearPropuesta();
     await pedir(`/propuestas/${vieja.id}/eventos`, { method: 'POST', body: JSON.stringify({ tipo: 'abierto', sesion: 'Qw8e7r6t5y4u3i2o' }) });
 

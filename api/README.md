@@ -14,11 +14,12 @@ api/
 │   ├── index.ts              app Hono (fetch) + scheduled (cron)
 │   ├── cors.ts               CORS con origen exacto, sin credenciales
 │   ├── errores.ts            ErrorApi + manejador central { error: { codigo, mensaje } }
-│   ├── esquemas.ts           Zod (propuesta y eventos) + lectura de JSON con tope de 16 KB
+│   ├── esquemas.ts           Zod .strict() (sobre cifrado v2 y eventos) + lectura de JSON con tope de 32 KB
 │   ├── limite-tasa.ts        ventana fija por hash de IP + topes globales diarios
 │   ├── ids.ts                ids base62 sin sesgo, SHA-256, comparación en tiempo constante
 │   ├── comun.ts              carga de propuestas, auth admin, URL de fotos
 │   ├── ntfy.ts               reenvío push opcional (nunca rompe la respuesta)
+│   ├── turnstile.ts          verificación anti-bots opcional (TURNSTILE_SECRETO)
 │   ├── limpieza.ts           borrado de expirados, fotos huérfanas y contadores
 │   └── rutas/                fotos.ts, propuestas.ts, eventos.ts
 └── test/                     Vitest dentro del runtime de Workers (@cloudflare/vitest-pool-workers)
@@ -29,10 +30,10 @@ api/
 | Método y ruta | Auth | Respuesta |
 |---------------|------|-----------|
 | `GET /salud` | — | `200 { ok, version }` |
-| `POST /fotos` (binario `image/webp` o `image/jpeg`, ≤ 500 KB) | — | `201 { id, url, expiraEn }` |
-| `GET /fotos/:id` | — | `200` imagen |
-| `POST /propuestas` | — | `201 { id, claveAdmin, expiraEn, ntfyTema }` |
-| `GET /propuestas/:id` | — | `200` propuesta pública |
+| `POST /fotos` (`application/octet-stream` cifrado, ≤ 512 029 bytes) | — | `201 { id, url, expiraEn }` |
+| `GET /fotos/:id` | — | `200` bytes cifrados (`attachment`) |
+| `POST /propuestas` (`{ v: 2, cifrado, fotos, avisos }`) | Turnstile si está activo | `201 { id, claveAdmin, expiraEn, ntfyTema }` |
+| `GET /propuestas/:id` | — | `200 { v, id, cifrado, fotos, creadaEn, expiraEn }` (v1 heredadas: en claro) |
 | `DELETE /propuestas/:id` | `Bearer claveAdmin` | `204` |
 | `POST /propuestas/:id/eventos` (`text/plain` o JSON) | — | `202 { ok }` o `200 { ok, duplicado }` |
 | `GET /propuestas/:id/eventos?desde=<cursor>` | `Bearer claveAdmin` | `200 { eventos, cursor, resumen, para, expiraEn, ntfyTema }` |
@@ -98,7 +99,9 @@ Time Travel (`npx wrangler d1 time-travel restore noviazgo --timestamp=<ISO>`).
 - Sin secretos en el repositorio: `SAL_IP` va en `wrangler secret` y, en local, en `.dev.vars` (ignorado por git).
 - La `claveAdmin` solo existe en el enlace de quien envía; en D1 se guarda su SHA-256 y se compara en tiempo constante.
 - La IP nunca se guarda en claro: se usa `SHA-256(SAL_IP + IP)` para los límites de tasa.
-- Las fotos se validan por sus bytes mágicos (JPEG `FF D8 FF`, WebP `RIFF....WEBP`) y deben coincidir con el `Content-Type`.
+- **v2: cifrado de extremo a extremo.** El Worker nunca ve textos ni fotos en claro: recibe un sobre `{ v: 2, cifrado, fotos }` y fotos `application/octet-stream`. Rechaza imágenes en claro (JPEG/WebP por bytes mágicos) y sobres mal formados. Detalle en `docs/arquitectura.md` §13.
+- HTTPS obligatorio (301/403 por `http://`, salvo localhost), HSTS, CSP `sandbox`, `X-Frame-Options: DENY` y CORP `same-origin`.
+- Esquemas Zod `.strict()`: cualquier campo extra (por ejemplo `claveAdmin` o `expiraEn`) → 422.
 - Los logs no incluyen IP, claves ni textos de las propuestas.
 
 ## Nota de diseño: login con Google (futuro, no implementado)

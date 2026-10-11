@@ -26,11 +26,12 @@ Tu trabajo es tomar las decisiones técnicas para que la app funcione de forma e
   - Los eventos de "No" se agrupan (como máximo uno cada 3 s, con el conteo).
   - En `respuestas.html` todo se muestra con `textContent`, y el sondeo se pausa con la pestaña oculta y aplica backoff ante errores.
   - IDs y claves con `crypto.getRandomValues`. La `claveAdmin` viaja en el fragmento `#k=`, nunca en la query.
+  - **Cifrado de extremo a extremo (v2, contrato §13):** el contenido y las fotos se cifran en el navegador (`js/cifrado.js`, AES-GCM) y la llave viaja solo en el fragmento `#c=`. Ningún cambio puede mandar al servidor datos en claro ni la llave. Si cambia la URL de la API, también hay que actualizar las CSP `<meta>` de las tres páginas.
   - No se envían datos sensibles: solo nombres, textos, fotos elegidas por quien envía y eventos.
 - **ntfy.sh** es solo un reenvío push opcional que hace el Worker. El navegador no le habla directamente.
 - **Compatibilidad con GitHub Pages:** el frontend son solo archivos estáticos. Usa rutas **relativas** (el sitio vive en `https://<usuario>.github.io/<repo>/`, no en la raíz del dominio). No uses nada que requiera servidor en el frontend (rewrites, variables de entorno). Toda lógica de servidor va en `api/` y se consume por CORS.
 - **Datos externos:** todo lo que llega de la URL o de la API se valida y se pinta con `textContent`, nunca con `innerHTML`. Las URLs de fotos solo se aceptan si empiezan por `API_BASE + '/fotos/'`. Si los datos faltan, están corruptos o la API falla, se muestran valores por defecto o una pantalla de error con "Reintentar", en vez de romper la página.
-- **Fotos:** se comprimen en el navegador (WebP, con JPEG de respaldo para Safari, ≤ 1280 px, ≤ 500 KB) y nunca se sube el archivo original (hay que quitar el EXIF).
+- **Fotos:** se comprimen en el navegador (WebP, con JPEG de respaldo para Safari, ≤ 1280 px, ≤ 500 KB), se cifran y nunca se sube el archivo original (hay que quitar el EXIF). Se muestran como `blob:` tras descargarlas con `fetch` y descifrarlas.
 - **Botón "No" que huye:**
   - Usa Pointer Events: `pointerenter` en dispositivos con `hover` y `pointerdown` en táctiles (detecta con `matchMedia('(hover: hover)')`). Llama a `preventDefault()` para que el toque nunca cuente como clic.
   - También debe huir con el foco del teclado, y el "No" jamás debe disparar una respuesta.

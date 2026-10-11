@@ -656,6 +656,8 @@ button.chip-filtro[aria-pressed="true"] { background: var(--color-texto); color:
 .agregar-opcion { display: grid; gap: 0.5rem; grid-template-columns: 4.5rem 1fr auto; align-items: end; }
 
 /* Barra de acciones del generador */
+.caja-turnstile { display: flex; justify-content: center; margin-block: 1rem 0; min-height: 65px; }
+.caja-turnstile[hidden] { display: none; }
 .acciones-generador { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; margin-block: 1.5rem 0.5rem; }
 .acciones-generador .boton { flex: 1 1 12rem; }
 .resumen-errores {

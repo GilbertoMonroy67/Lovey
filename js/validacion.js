@@ -1,9 +1,9 @@
-// Validación del modelo de propuesta v1 (contrato §3.3) en el navegador.
-// La usan el generador (antes de enviar) y api-mock.js (para imitar al Worker con Zod).
-// Devuelve la propuesta normalizada y una lista de { campo, mensaje } con el mismo formato
-// que `detalles` del error 422 de la API.
+// Validación del contenido de la propuesta (contrato §3.3) en el navegador.
+// Desde v2 el contenido viaja cifrado y el servidor no puede leerlo: esta es la única validación
+// de los textos. La usa js/api.js antes de cifrar. Devuelve la propuesta normalizada y una lista
+// de { campo, mensaje } con el mismo formato que `detalles` del error 422 de la API.
 
-import { LIMITES, PATRONES, TIPOS, VERSION_PROPUESTA } from './limites.js';
+import { LIMITES, PATRONES, TIPOS } from './limites.js';
 import { largo, limpiarTexto } from './utilidades.js';
 
 export function validarPropuesta(entrada) {
@@ -22,8 +22,6 @@ export function validarPropuesta(entrada) {
     else if (max !== undefined && n > max) error(campo, `${nombre} admite como máximo ${max} caracteres.`);
     return limpio;
   };
-
-  if (p.v !== VERSION_PROPUESTA) error('v', 'Versión de propuesta no compatible.');
 
   const plantilla = typeof p.plantilla === 'string' ? p.plantilla : '';
   if (!PATRONES.idPlantilla.test(plantilla)) error('plantilla', 'La plantilla no es válida.');
@@ -96,14 +94,16 @@ export function validarPropuesta(entrada) {
     max: LIMITES.mensajeFinal.max, multilinea: true, nombre: 'El mensaje final',
   });
 
-  const datos = { v: VERSION_PROPUESTA, plantilla, tipo: p.tipo, de, para, pasos, pregunta, mensajeFinal };
+  // Solo estos campos se cifran y se guardan: cualquier otro que traiga la entrada se descarta.
+  const datos = { plantilla, tipo: p.tipo, de, para, pasos, pregunta, mensajeFinal };
   if (celebracion) datos.celebracion = celebracion;
   return { datos, detalles };
 }
 
-/** Comprueba que la URL de una foto sea de confianza antes de asignarla a img.src (contrato §6.2). */
+/** Comprueba que la URL de una foto sea de confianza antes de descargarla (contrato §6.2). */
 export function urlFotoValida(url, apiBase, modo) {
   if (typeof url !== 'string') return false;
-  if (url.startsWith(`${apiBase}/fotos/`)) return true;
-  return modo === 'mock' && /^data:image\/(webp|jpeg);base64,/.test(url);
+  const prefijo = `${apiBase}/fotos/`;
+  if (url.startsWith(prefijo) && PATRONES.idFoto.test(url.slice(prefijo.length))) return true;
+  return modo === 'mock' && /^data:application\/octet-stream;base64,[A-Za-z0-9+/]+=*$/.test(url);
 }

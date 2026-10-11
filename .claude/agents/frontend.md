@@ -16,6 +16,7 @@ La app es un frontend estático en GitHub Pages para pedirle a alguien que sea s
 3. Revisa el código real (`Glob`, `Read`) antes de diseñar sobre él.
 4. **Tu territorio:** `*.html`, `css/**`, `js/**` (excepto `js/limites.js`, que es del arquitecto y tú solo lo importas) y `assets/**`. **No toques `api/`.** Si el contrato no te alcanza, propón el cambio al arquitecto.
 5. Las reglas técnicas de `.claude/agents/arquitecto.md` también aplican para ti. Las más importantes: JS puro sin build, rutas relativas, `textContent` y nunca `innerHTML` con datos de la URL, y el botón "No" con Pointer Events animado solo con `transform`.
+6. **Cifrado (v2, contrato §13):** todo pasa por `js/api.js`, que cifra antes de enviar y descifra al recibir. La llave va solo en `#c=`. No agregues scripts en línea, `style=` en el HTML ni recursos de otros dominios sin actualizar la CSP `<meta>` de la página.
 
 ## Restricciones técnicas
 

@@ -1,4 +1,5 @@
 // POST /fotos y GET /fotos/:id (docs/arquitectura.md §5.1 y D1).
+// v2: las fotos llegan cifradas desde el navegador (AES-GCM); R2 solo guarda bytes ilegibles.
 import { Hono } from 'hono';
 import { LIMITES, PATRONES } from '../../../js/limites.js';
 import { iso, urlFoto } from '../comun';
@@ -21,6 +22,10 @@ export function detectarTipo(b: Uint8Array): 'image/jpeg' | 'image/webp' | null 
 }
 
 const MUY_GRANDE = 'La foto pesa demasiado (máximo 500 KB).';
+const TIPO_CIFRADO = 'application/octet-stream';
+// 1 byte de versión + 12 de IV + 16 de etiqueta GCM + al menos 1 byte de foto (ver js/cifrado.js).
+const MINIMO_CIFRADO = 30;
+const VERSION_CIFRADO = 1;
 
 export const rutasFotos = new Hono<AppEnv>();
 
@@ -30,25 +35,27 @@ rutasFotos.post('/', async (c) => {
   await limitar(c.env.DB, 'fotos', ipHash, ahora);
 
   const declarado = (c.req.header('Content-Type') ?? '').split(';')[0]!.trim().toLowerCase();
-  if (!(LIMITES.fotoTipos as readonly string[]).includes(declarado)) throw new ErrorApi(415, 'tipo_no_soportado');
-  if (Number(c.req.header('Content-Length') ?? '0') > LIMITES.fotoBytes) {
+  if (declarado !== TIPO_CIFRADO) throw new ErrorApi(415, 'tipo_no_soportado');
+  if (Number(c.req.header('Content-Length') ?? '0') > LIMITES.fotoCifradaBytes) {
     throw new ErrorApi(413, 'archivo_muy_grande', MUY_GRANDE);
   }
 
   const bytes = new Uint8Array(await c.req.arrayBuffer());
-  if (bytes.byteLength > LIMITES.fotoBytes) throw new ErrorApi(413, 'archivo_muy_grande', MUY_GRANDE);
-  const real = detectarTipo(bytes);
-  // El tipo declarado debe coincidir con el contenido real del archivo.
-  if (!real || real !== declarado) throw new ErrorApi(415, 'tipo_no_soportado');
+  if (bytes.byteLength > LIMITES.fotoCifradaBytes) throw new ErrorApi(413, 'archivo_muy_grande', MUY_GRANDE);
+  // Sin la llave no se puede comprobar el contenido; sí la forma del sobre cifrado.
+  // Una imagen en claro (JPEG/WebP reconocible) se rechaza: la app siempre cifra antes de subir.
+  if (bytes.byteLength < MINIMO_CIFRADO || bytes[0] !== VERSION_CIFRADO || detectarTipo(bytes)) {
+    throw new ErrorApi(415, 'tipo_no_soportado');
+  }
 
   const id = nuevoIdFoto();
   const r2Clave = `fotos/${id}`;
-  await c.env.FOTOS.put(r2Clave, bytes, { httpMetadata: { contentType: real } });
+  await c.env.FOTOS.put(r2Clave, bytes, { httpMetadata: { contentType: TIPO_CIFRADO } });
   try {
     await c.env.DB.prepare(
       'INSERT INTO fotos (id, propuesta_id, r2_clave, tipo_mime, bytes, ip_hash, creada_en) VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6)',
     )
-      .bind(id, r2Clave, real, bytes.byteLength, ipHash, ahora)
+      .bind(id, r2Clave, TIPO_CIFRADO, bytes.byteLength, ipHash, ahora)
       .run();
   } catch (e) {
     await c.env.FOTOS.delete(r2Clave); // no dejar objetos sin fila
@@ -91,8 +98,8 @@ rutasFotos.get('/:id', async (c) => {
       'Content-Length': String(objeto.size),
       // private: navegadores sí, cachés compartidas (proxies) no; son fotos personales.
       'Cache-Control': 'private, max-age=86400',
-      'X-Content-Type-Options': 'nosniff',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
+      // El frontend la descarga con fetch (CORS) y la descifra; nunca se muestra directo desde la API.
+      'Content-Disposition': 'attachment',
       ETag: objeto.httpEtag,
     },
   });

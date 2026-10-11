@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import { CABECERA_TURNSTILE } from './turnstile';
 import type { AppEnv } from './tipos';
 
 const LOCAL = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
@@ -26,7 +27,7 @@ export const cors: MiddlewareHandler<AppEnv> = async (c, next) => {
     if (permitido && origen) {
       cabeceras.set('Access-Control-Allow-Origin', origen);
       cabeceras.set('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-      cabeceras.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      cabeceras.set('Access-Control-Allow-Headers', `Content-Type, Authorization, ${CABECERA_TURNSTILE}`);
       cabeceras.set('Access-Control-Max-Age', '86400');
     }
     return new Response(null, { status: 204, headers: cabeceras });

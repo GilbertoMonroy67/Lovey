@@ -14,6 +14,7 @@
 | `arquitecto` | Decisiones técnicas, contrato de integración, planificación, revisión y reestructuración | `CLAUDE.md`, `docs/`, `js/limites.js`, `.claude/agents/`, `README.md`, `.gitignore`, `.nojekyll` |
 | `frontend` | UX/UI, las tres páginas, plantillas, fotos en el navegador y el adaptador `js/api.js` con su modo mock | `*.html`, `css/**`, `js/**` (excepto `js/limites.js`), `assets/**` |
 | `backend` | El Worker de Cloudflare: API, D1, R2, límites de tasa, limpieza y avisos ntfy; a futuro, login con Google | `api/**` |
+| `cyberbot` | Ciberseguridad: audita secretos, XSS, CORS, auth, fotos, límites, privacidad y dependencias; propone correcciones al dueño de cada archivo | `docs/seguridad.md` |
 
 ## Descripción del proyecto
 
@@ -24,8 +25,9 @@ El punto "Divertido" es que la persona que lo reciva no tendra la opcion de deci
 ### Funcionalidades
 
 1. **Generador (`index.html`):** quien hace la pregunta escribe su nombre, el de la otra persona y el tipo de pregunta (novia/novio, esposa/esposo, cita, otro) y elige una plantilla. Después arma los **pasos** (de 1 a 5, cada uno con palabras bonitas y de 0 a 3 fotos), ajusta la pregunta y elige las **opciones de celebración** que va a ofrecer. Al terminar obtiene:
-   - Un **enlace corto para la pareja**: `pregunta.html?id=<id>`.
-   - Un **enlace privado de seguimiento**: `respuestas.html?id=<id>#k=<claveAdmin>`.
+   - Un **enlace para la pareja**: `pregunta.html?id=<id>#c=<llave>`.
+   - Un **enlace privado de seguimiento**: `respuestas.html?id=<id>#k=<claveAdmin>&c=<llave>`.
+   - La llave `c` cifra todo de extremo a extremo y nunca llega al servidor (ver "Registro y privacidad").
    - Un aviso push opcional con ntfy.
 2. **Experiencia de la pareja (`pregunta.html`), en este orden:**
    1. **Pasos:** palabras bonitas con fotos y un botón **Siguiente** (y **Atrás**). Puede haber varias pantallas de este tipo.
@@ -38,7 +40,7 @@ El punto "Divertido" es que la persona que lo reciva no tendra la opcion de deci
    - Nunca se sale del área visible ni queda encima del botón "Sí".
    - El "No" nunca dispara una respuesta, ni siquiera navegando con teclado: con el foco también huye.
    - Extras: el "Sí" crece cada vez que el "No" huye, y el texto del "No" cambia ("¿Segur@?", "Piénsalo bien"…).
-4. **Fotos:** se comprimen en el navegador (WebP, o JPEG en Safari, máximo 1280 px y 500 KB, sin EXIF) y se suben al Worker, que las guarda en R2. Expiran junto con la propuesta (30 días). Son opcionales: si no hay o fallan, el paso muestra solo el texto.
+4. **Fotos:** se comprimen en el navegador (WebP, o JPEG en Safari, máximo 1280 px y 500 KB, sin EXIF), **se cifran** y se suben al Worker, que las guarda en R2 sin poder verlas. Expiran junto con la propuesta (30 días). Son opcionales: si no hay o fallan, el paso muestra solo el texto.
 5. **Plantillas:** se eligen en el generador entre varias plantillas visuales (romántica, minimalista, carta vintage, noche estrellada, retro 8-bit, kawaii, propuesta de matrimonio…) con vista previa. Cada plantilla es un archivo CSS en `css/plantillas/` y se registra en `js/plantillas.js`. Su id se guarda en la propuesta (campo `plantilla`).
 6. **Ver la respuesta (`respuestas.html`):** quien envía ve en la PC, sin registrarse, que se **abrió** el enlace, los **intentos de No**, que dijo **Sí** y **qué celebración eligió** (con su nota). Los eventos se guardan en el backend durante 30 días y el panel los consulta cada 5 s. "Mis propuestas" se recuerda en el `localStorage` de esa PC.
 7. **Avisos push (opcional):** si quien envía lo activa, el Worker reenvía a un tema secreto de ntfy.sh los eventos "abrió", "dijo que sí" y "eligió celebración". Para recibirlos hay que suscribirse a ese tema en la app de ntfy.
@@ -47,7 +49,9 @@ El punto "Divertido" es que la persona que lo reciva no tendra la opcion de deci
 
 - **Nadie se registra en v1.** Quien recibe nunca ve un muro de registro. Quien envía queda identificado por una clave secreta (`claveAdmin`) que va en el fragmento `#` del enlace de seguimiento. El servidor solo guarda su hash.
 - El login con Google para quien envía (historial en varios dispositivos) queda como fase futura y opcional.
-- Solo se guardan nombres, textos, fotos y eventos durante 30 días. La IP se guarda únicamente como hash con sal para limitar la tasa de solicitudes.
+- **Cifrado de extremo a extremo (desde 2026-10-11):** nombres, textos, opciones, nota y fotos se cifran en el navegador (AES-GCM 256, `js/cifrado.js`). En D1 y R2 solo hay datos ilegibles. La llave viaja en el fragmento `#c=` de los enlaces: quien tiene el enlace ve la sorpresa y nadie más, ni el servidor.
+- Se guardan durante 30 días, cifrados, y el servidor solo ve los eventos (abrió, intentos de No, sí). La IP se guarda únicamente como hash con sal para limitar la tasa de solicitudes.
+- Controles de seguridad y riesgos aceptados: `docs/seguridad.md` (agente `cyberbot`).
 
 ## Stack tecnológico
 
@@ -72,7 +76,8 @@ Noviazgo/
 ├── README.md                      [arquitecto]
 ├── .gitignore / .nojekyll         [arquitecto]
 ├── docs/arquitectura.md           [arquitecto] contrato de integración
-├── .claude/agents/                [arquitecto] arquitecto.md, frontend.md, backend.md
+├── docs/seguridad.md              [cyberbot] modelo de amenazas y auditorías (se crea en la primera auditoría)
+├── .claude/agents/                [arquitecto] arquitecto.md, frontend.md, backend.md, cyberbot.md
 ├── index.html                     [frontend] generador
 ├── pregunta.html                  [frontend] pasos → pregunta → celebración → final
 ├── respuestas.html                [frontend] panel de quien envía
@@ -82,7 +87,8 @@ Noviazgo/
 ├── js/
 │   ├── config.js                  [frontend] API_BASE y MODO ('mock' | 'api')
 │   ├── limites.js                 [arquitecto] límites compartidos con el Worker
-│   ├── api.js / api-mock.js       [frontend] adaptador de la API y su simulación
+│   ├── api.js / api-mock.js       [frontend] adaptador de la API (cifra y descifra) y su simulación
+│   ├── cifrado.js                 [frontend] AES-GCM con WebCrypto; llave en #c=
 │   ├── generador.js               [frontend]
 │   ├── editor-pasos.js            [frontend]
 │   ├── fotos.js                   [frontend] compresión y subida
@@ -100,7 +106,7 @@ Noviazgo/
     ├── package.json, package-lock.json, wrangler.jsonc, tsconfig.json, vitest.config.ts
     ├── worker-configuration.d.ts (npm run types), .dev.vars.example, .gitignore, README.md
     ├── migrations/0001_inicial.sql
-    ├── src/ (index.ts, tipos.ts, comun.ts, cors.ts, errores.ts, esquemas.ts, limite-tasa.ts, ids.ts, ntfy.ts, limpieza.ts, rutas/{fotos,propuestas,eventos}.ts)
+    ├── src/ (index.ts, tipos.ts, comun.ts, cors.ts, errores.ts, esquemas.ts, limite-tasa.ts, ids.ts, ntfy.ts, turnstile.ts, limpieza.ts, rutas/{fotos,propuestas,eventos}.ts)
     └── test/ (base, propuestas, fotos, eventos, limites-limpieza .test.ts + ayuda.ts, configurar.ts, env.d.ts)
 ```
 
@@ -161,6 +167,12 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 | 2026-10-07 | Avisos de `npm audit` (undici, solo desarrollo) aceptados; Google Fonts por plantilla aceptadas | No afectan producción; las fuentes no bloquean la carga y tienen respaldo |
 | 2026-10-09 | Repositorio `GilbertoMonroy67/Lovey`; frontend en `https://gilbertomonroy67.github.io/Lovey/` | Elegido por el usuario |
 | 2026-10-09 | API en producción: `https://noviazgo-api.gilbertoalejandromonroymorales.workers.dev/api/v1`; `ORIGENES_PERMITIDOS = https://gilbertomonroy67.github.io` | Solo la página del usuario puede llamar a la API desde el navegador |
+| 2026-10-11 | **Contrato v2: cifrado de extremo a extremo** (AES-GCM 256 en el navegador, llave en `#c=`). El servidor guarda el sobre `{ v: 2, cifrado, fotos }` y fotos `application/octet-stream`; las v1 se siguen leyendo hasta expirar | Pedido del usuario: que los datos y las fotos no se vean en la nube, solo con el enlace |
+| 2026-10-11 | La validación de textos pasa a ser solo del navegador (`js/validacion.js`); el Worker valida forma y tamaño. Se elimina el test de code points del Worker | El servidor ya no puede leer el contenido; `pregunta.js` vuelve a sanear al descifrar |
+| 2026-10-11 | Avisos ntfy genéricos en v2 (sin nombre ni opción) | El Worker no conoce el contenido |
+| 2026-10-11 | Endurecimiento: Zod `.strict()`, HTTPS obligatorio (301/403) + HSTS, CSP/XFO/CORP en la API, CSP `<meta>` y `no-referrer` en las tres páginas, cuerpo JSON ≤ 32 KB | Controles 8, 14–19 de la auditoría de `cyberbot` |
+| 2026-10-11 | Turnstile opcional en `POST /propuestas` (desactivado hasta configurar `TURNSTILE_SITIO` + `TURNSTILE_SECRETO`) | Protección contra bots gratuita, sin muro para quien recibe |
+| 2026-10-11 | Crear el agente `cyberbot` (ciberseguridad), auditor sin propiedad de código: solo escribe `docs/seguridad.md` | Revisar la seguridad antes de cada deploy sin mezclarla con el trabajo de `frontend` y `backend` |
 | 2026-10-09 | `.gitignore` endurecido (`.env*`, `.dev.vars*`, `*.pem`, `*.key`, `.wrangler/`, `.claude/settings.local.json`…) | Requisito del usuario: nunca subir llaves ni credenciales |
 
 ## Pendientes / Próximos pasos
@@ -184,7 +196,11 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 - [x] Volver absoluta la URL de `og:image` en `index.html` y `pregunta.html` (2026-10-09)
 - [ ] B6: límites por IP de alta frecuencia con el binding `ratelimits` (backend; antes confirmar que está en el plan gratuito)
 - [ ] Prueba manual en navegadores reales: botón "No" en táctil (iPhone y Android), teclado, `prefers-reduced-motion` y compresión de fotos HEIC/EXIF (usuario/frontend)
-- [ ] Considerar una CSP por `<meta>` en las tres páginas (`connect-src`/`img-src` con el origen de la API)
+- [x] CSP por `<meta>` en las tres páginas (2026-10-11)
+- [x] Primera auditoría de `cyberbot` con los 20 controles y `docs/seguridad.md` (2026-10-11)
+- [ ] **Deploy v2:** `npx wrangler login` (la sesión actual da 7403), `cd api && npx wrangler deploy` y `git push` **juntos** (el frontend v2 no funciona con el Worker v1 ni al revés). Después, las comprobaciones de `docs/seguridad.md`
+- [ ] Configurar Turnstile (opcional; `docs/arquitectura.md` §9, paso 9b)
+- [ ] 2026-11-10: quitar el soporte de lectura de propuestas v1
 - [ ] Activar GitHub Pages y probar en móvil real (lista de `docs/arquitectura.md` §10)
 - [ ] (Futuro) Login con Google opcional para quien envía (historial en varios dispositivos) (backend). Requiere antes servir el frontend y la API desde el mismo sitio (Workers Assets o un dominio propio), porque las cookies de `workers.dev` no funcionan desde `github.io`.
 
@@ -247,3 +263,27 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 - Antes del primer push se revisaron los 68 archivos: `api/.dev.vars`, `api/.wrangler/` y `node_modules/` quedan fuera; sin llaves en el contenido.
 - GitHub Pages activo en **https://gilbertomonroy67.github.io/Lovey/**: todas las páginas y recursos responden 200, `api/.dev.vars` responde 404 y la API acepta el origen de Pages (CORS).
 - Siguiente paso: prueba manual en celulares reales (`docs/arquitectura.md` §10) y B6 (límites con `ratelimits`).
+
+### Sesión 4 — 2026-10-11
+- Se creó el agente `cyberbot` (`.claude/agents/cyberbot.md`), responsable de la ciberseguridad. Audita secretos e historial de git, XSS, la `claveAdmin`, CORS, la subida de fotos, los límites de tasa y el costo, la privacidad (EXIF, retención, hash de IP) y las dependencias.
+- No edita código ajeno: entrega las correcciones a `frontend`, `backend` o `arquitecto`, y registra sus auditorías en `docs/seguridad.md`.
+- Prueba solo contra lo que es del usuario, sin cargas ni fuerza bruta en producción.
+- `cyberbot` hizo la primera auditoría con los 20 controles que pidió el usuario (resultado en `docs/seguridad.md`):
+  - **Ya se cumplían:** API keys ocultas, sin secretos en el historial de git (revisado `git log --all -p`), autenticación con `claveAdmin`, acceso restringido, credencial con hash, límites de tasa, SQL parametrizado y dependencias de producción sin vulnerabilidades.
+  - **No aplican:** clave pública de BD y RLS (D1 no se expone al navegador) y cookies (no hay sesiones).
+  - **Implementado:**
+    - Cifrado de extremo a extremo (contrato v2, `docs/arquitectura.md` §13): `js/cifrado.js`; `js/api.js` cifra y descifra; el Worker solo guarda el sobre y las fotos cifradas, y rechaza imágenes en claro.
+    - Zod `.strict()`.
+    - HTTPS obligatorio + HSTS. Antes el Worker respondía 200 por `http://`.
+    - Cabeceras CSP, XFO y CORP en la API; CSP `<meta>` y `no-referrer` en las páginas.
+    - Respuestas mínimas.
+    - Turnstile opcional.
+  - Compatibilidad: las propuestas v1 se siguen leyendo hasta que expiren.
+- Dependencias: wrangler 4.149 y zod 4.6.6. Producción: 0 vulnerabilidades. Desarrollo: avisos en `sharp`/`undici` de miniflare (aceptados).
+- Verificado:
+  - 93 tests del Worker y `tsc` limpio.
+  - Integración con los módulos reales de `js/` (Node + jsdom en el scratchpad) contra `wrangler dev --local`: 26 comprobaciones en modo api y 20 en mock.
+  - Recorridos de `index.html`, `pregunta.html` (normal, sin llave, llave cortada y v1 heredada) y `respuestas.html` (con y sin llave), sin errores.
+  - El GET crudo, el panel crudo y R2 no contienen texto ni imágenes en claro.
+- No se pudo consultar D1 de producción: la sesión de wrangler responde 7403 y hay que hacer `npx wrangler login`.
+- **Nada desplegado todavía:** el Worker v2 y el frontend deben publicarse juntos.

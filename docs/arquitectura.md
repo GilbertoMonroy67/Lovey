@@ -127,6 +127,8 @@ paso[0] ─Siguiente▶ paso[1] … ─Siguiente▶ pregunta (Sí / No que huye)
 
 ## 3. Modelo de datos de la propuesta (v1)
 
+> **v2 (2026-10-11):** el contenido de §3.1 ya no viaja en claro. El navegador lo valida con estas mismas reglas, lo cifra (AES-GCM 256) y solo manda el sobre `{ v: 2, cifrado, fotos, avisos }`. El modelo de abajo sigue siendo el **contenido** (sin `v` ni `avisos`) que se cifra. Ver §13.
+
 ### 3.1 Lo que envía el generador (`POST /propuestas`)
 
 ```json
@@ -192,8 +194,8 @@ Es igual, pero sin `avisos`. Además, cada foto se resuelve en una URL y se agre
 | `opciones[].etiqueta` | 1–40 caracteres |
 | `opciones[].emoji` | Opcional, 0–8 caracteres |
 | `mensajeFinal` | 0–200 caracteres |
-| Cuerpo JSON completo | ≤ 16 KB |
-| Foto | `image/webp` o `image/jpeg`, ≤ 500 KB (512 000 bytes), lado mayor ≤ 1280 px (recomendado; el servidor solo exige el tamaño en bytes) |
+| Cuerpo JSON completo | ≤ 32 KB (v2; era 16 KB) |
+| Foto | Se comprime a `image/webp` o `image/jpeg`, ≤ 500 KB (512 000 bytes), lado mayor ≤ 1280 px. **v2:** se sube cifrada como `application/octet-stream`, ≤ 512 029 bytes (`fotoCifradaBytes`) |
 | Vida de la propuesta | 30 días desde su creación (`DIAS_EXPIRACION = 30`) |
 | Foto huérfana | Se borra a las 24 h |
 | Eventos por propuesta | ≤ 300 en total; `si` 1 (los siguientes se ignoran); `celebracion_elegida` ≤ 10 |
@@ -218,7 +220,7 @@ Campos comunes del cuerpo: `tipo` y `sesion`, un ID aleatorio de 16 caracteres g
 | `abierto` | Una vez por carga de la página, después de obtener la propuesta | — | no | sí: "Ana abrió tu enlace" |
 | `intento_no` | Agrupado: como máximo uno cada **3 s** con los intentos acumulados desde el último envío, más un envío final en `pagehide` | `conteo` (entero 1–1000) | sí en `pagehide` | no |
 | `si` | Al pulsar Sí | — | **sí** | sí: "¡Ana dijo que SÍ! 💖" |
-| `celebracion_elegida` | Al enviar el formulario de celebración | `opcionId` (debe existir en la propuesta), `nota` (opcional) | **sí** | sí: "Ana eligió celebrar en: La BTK" |
+| `celebracion_elegida` | Al enviar el formulario de celebración | v2: `cifrado` (opción + nota cifradas). v1: `opcionId` (debe existir en la propuesta), `nota` (opcional) | **sí** | v2: "Ya eligió dónde celebrar 🎉" (sin nombre ni opción). v1: "Ana eligió celebrar en: La BTK" |
 
 Ejemplo de cuerpo:
 
@@ -232,6 +234,8 @@ Ejemplo de cuerpo:
 
 ## 5. Contrato de la API (Worker)
 
+> **v2 (2026-10-11):** fotos, propuestas, eventos de celebración y panel cambian por el cifrado de extremo a extremo; además hay HTTPS obligatorio, cabeceras nuevas y Turnstile opcional. Lo que diga §13 manda sobre esta sección.
+
 - **Base:** `https://noviazgo-api.<subdominio>.workers.dev/api/v1`. En desarrollo: `http://localhost:8787/api/v1` (`wrangler dev`).
 - **Formato:** JSON en UTF-8, salvo la subida de fotos (binario) y la descarga de fotos.
 - **Errores:** siempre `{ "error": { "codigo": "<codigo>", "mensaje": "<texto en español para mostrar>" } }`.
@@ -240,7 +244,7 @@ Ejemplo de cuerpo:
 
 | Método y ruta | Auth | Request | Respuesta OK |
 |---------------|------|---------|--------------|
-| `GET /salud` | — | — | `200 { "ok": true, "version": 1 }` |
+| `GET /salud` | — | — | `200 { "ok": true, "version": 2 }` |
 | `POST /fotos` | — | Cuerpo binario; `Content-Type: image/webp` o `image/jpeg` | `201 { "id": "f_…", "url": "…/fotos/f_…", "expiraEn": "<ISO, +24 h mientras sea huérfana>" }` |
 | `GET /fotos/:id` | — | — | `200` con la imagen. Cabeceras: `Content-Type` guardado, `Cache-Control: private, max-age=86400` (v1.1: sin cachés compartidas), `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: cross-origin` |
 | `POST /propuestas` | — | JSON de §3.1 | `201 { "id": "aB3dE5fG7hJ9", "claveAdmin": "<32 caracteres>", "expiraEn": "<ISO>", "ntfyTema": "<tema>" \| null }` |
@@ -288,8 +292,10 @@ Ejemplo de cuerpo:
 | 404 | `no_encontrado` | Propuesta o foto inexistente |
 | 410 | `expirada` | La propuesta existe pero ya expiró (antes de que el cron la borre) |
 | 409 | `limite_eventos` | Se alcanzó el tope de eventos de la propuesta |
-| 413 | `archivo_muy_grande` | Foto > 500 KB o JSON > 16 KB |
-| 415 | `tipo_no_soportado` | La foto no es WebP o JPEG (por los bytes mágicos) |
+| 413 | `archivo_muy_grande` | Foto cifrada > 512 029 bytes o JSON > 32 KB |
+| 415 | `tipo_no_soportado` | v2: la foto no llega como `application/octet-stream` cifrada (versión 1, ≥ 30 bytes) o es una imagen en claro |
+| 403 | `verificacion_bot` | v2: Turnstile activo y el token falta o no es válido |
+| 403 | `https_requerido` | v2: solicitud no GET por `http://` fuera de localhost |
 | 422 | `validacion` | Falla Zod. Se agrega `detalles: [{ "campo": "pasos.0.texto", "mensaje": "…" }]` |
 | 422 | `foto_invalida` | Un `fotos[].id` no existe, ya está asociado o expiró |
 | 429 | `demasiadas_solicitudes` | Límite de tasa. Incluye la cabecera `Retry-After` (segundos) |
@@ -302,7 +308,8 @@ Ejemplo de cuerpo:
 - Además, siempre se aceptan `^http://(localhost|127\.0\.0\.1)(:\d+)?$`, para desarrollar contra producción si hace falta. No hay cookies ni credenciales, así que esto no abre ningún riesgo de sesión.
 - Respuesta: `Access-Control-Allow-Origin: <origen exacto>` + `Vary: Origin`. Métodos: `GET, POST, DELETE, OPTIONS`. Cabeceras permitidas: `Content-Type, Authorization`. `Access-Control-Max-Age: 86400`. **Nunca** `Allow-Credentials`.
 - Un origen no permitido recibe la respuesta sin cabeceras CORS, y el navegador la bloquea.
-- `GET /fotos/:id` no necesita CORS (se usa en `<img>`).
+- v2: `GET /fotos/:id` **sí** usa CORS: el frontend la descarga con `fetch`, la descifra y la muestra como `blob:`. Todas las respuestas llevan `Cross-Origin-Resource-Policy: same-origin`, así que otros sitios no pueden incrustarlas.
+- v2: cabeceras permitidas `Content-Type, Authorization, X-Turnstile-Token`.
 
 ### 5.5 Límites de tasa y cuotas
 
@@ -385,6 +392,7 @@ Las fotos se borran de R2 explícitamente: el `ON DELETE CASCADE` solo limpia fi
 - Si falta `SAL_IP`, el Worker funciona y solo registra un aviso (para no romper el desarrollo). **En producción es obligatoria:** sin sal, el hash de una IPv4 se puede revertir por fuerza bruta. Se comprueba con `npx wrangler secret list` (§9, paso 6).
 - Variables en `wrangler.jsonc`: `ORIGENES_PERMITIDOS` y `NTFY_BASE` (v1.1; `https://ntfy.sh` por defecto, vacío = avisos desactivados; los tests lo dejan vacío para no salir a internet). `compatibility_date`: `2026-08-01`.
 - Los mensajes genéricos de Zod salen en español (`z.config(es())`).
+- **v2:** todos los objetos de Zod son `.strict()` (un campo de más → 422), HTTPS obligatorio, cabeceras `Content-Security-Policy`, `X-Frame-Options`, `Cross-Origin-Resource-Policy` y `Strict-Transport-Security`, y Turnstile opcional con el secreto `TURNSTILE_SECRETO` (§13).
 
 ---
 
@@ -416,6 +424,8 @@ export const SONDEO_MS = 5000;
 - **Producción:** en `*.github.io` el modo es `api` siempre que la URL esté configurada. Si no lo está, cae en `mock` y la página muestra un aviso visible: "Modo demostración: los enlaces solo funcionan en este navegador".
 
 ### 6.2 Interfaz de `js/api.js` (idéntica en ambos modos)
+
+> **v2:** la interfaz cambió para recibir la llave de cifrado; la versión vigente está en §13.4.
 
 ```js
 export async function subirFoto(blob, { alProgresar } = {}) // → { id, url, expiraEn }; alProgresar(0..1)
@@ -451,7 +461,8 @@ Noviazgo/
 ├── .gitignore                     [arquitecto]  (api/node_modules, api/.dev.vars, api/.wrangler)
 ├── .nojekyll                      [arquitecto]  (Pages sirve tal cual, sin Jekyll)
 ├── docs/
-│   └── arquitectura.md            [arquitecto]  ← este contrato
+│   ├── arquitectura.md            [arquitecto]  ← este contrato
+│   └── seguridad.md               [cyberbot]    modelo de amenazas y auditorías
 ├── .claude/agents/*.md            [arquitecto]
 │
 ├── index.html                     [frontend]  generador
@@ -463,7 +474,8 @@ Noviazgo/
 ├── js/
 │   ├── config.js                  [frontend]  API_BASE y MODO (la URL de producción la pega el usuario)
 │   ├── limites.js                 [arquitecto] límites compartidos (frontend y backend solo lo leen)
-│   ├── api.js                     [frontend]  adaptador: elige mock o api
+│   ├── api.js                     [frontend]  adaptador: elige mock o api; cifra y descifra (v2)
+│   ├── cifrado.js                 [frontend]  AES-GCM con WebCrypto, llave en #c= (v2)
 │   ├── api-mock.js                [frontend]  implementación con localStorage
 │   ├── generador.js               [frontend]  formulario y creación del enlace
 │   ├── editor-pasos.js            [frontend]  agregar, quitar y reordenar pasos y fotos
@@ -499,6 +511,7 @@ Noviazgo/
     │   ├── rutas/propuestas.ts
     │   ├── rutas/eventos.ts
     │   ├── ntfy.ts
+    │   ├── turnstile.ts           (v2: verificación anti-bots opcional)
     │   └── limpieza.ts            (cron)
     └── test/                      (base, propuestas, fotos, eventos, limites-limpieza + ayuda.ts)
 ```
@@ -507,6 +520,7 @@ Reglas para trabajar en paralelo:
 
 - `frontend` **no toca** `api/`. `backend` **no toca** nada fuera de `api/`.
 - `docs/arquitectura.md` y `js/limites.js` solo los cambia el arquitecto. Si un agente necesita un cambio, lo pide.
+- `cyberbot` audita todo el proyecto, pero solo escribe `docs/seguridad.md`. Sus correcciones las aplica el agente dueño de cada archivo.
 - El punto de integración es **este documento**: el frontend programa contra `api-mock.js` siguiendo §5 y §6, y el backend implementa §5. Si los dos cumplen el contrato, cambiar `MODO` a `api` debe funcionar sin tocar nada más.
 
 ---
@@ -543,6 +557,7 @@ Reglas para trabajar en paralelo:
 7. **Deploy:** `npx wrangler deploy`. Copiar la URL `https://noviazgo-api.<subdominio>.workers.dev` en `API_BASE` de `js/config.js` (con `/api/v1` al final, reemplazando `TU-SUBDOMINIO`).
 8. **Vista previa del enlace (Open Graph):** WhatsApp y Facebook exigen una URL **absoluta** en `og:image`. En `index.html` y `pregunta.html` cambiar `content="assets/og-imagen.png"` por `content="https://<usuario>.github.io/<repo>/assets/og-imagen.png"`. Después, `git push`.
 9. **Opcional:** instalar la app de ntfy en el celular para recibir los avisos push.
+9b. **Opcional (v2), protección contra bots:** en el panel de Cloudflare → Turnstile → *Add widget* con el hostname `gilbertomonroy67.github.io` (y `localhost` para pruebas), modo *Managed*. Pegar la *site key* en `TURNSTILE_SITIO` de `js/config.js` y guardar la *secret key* con `cd api && npx wrangler secret put TURNSTILE_SECRETO`. Activar el secreto y la site key **en el mismo deploy**: con secreto y sin site key nadie podría crear propuestas.
 10. **Futuro (no en v1):** proyecto en Google Cloud Console con un cliente OAuth y URIs de redirección, si se activa el login con Google.
 
 ## 10. Verificación de extremo a extremo (antes de dar v1 por terminada)
@@ -585,3 +600,56 @@ Resultado de la prueba **I1** (`js/api.js` en modo `api` contra `wrangler dev --
 | Límite de tasa en D1 | Se mantiene en v1 con sondeo adaptativo (§2.3); la migración al binding `ratelimits` queda como pendiente B6 (§5.5). |
 | `npm audit` (5 avisos altos en `undici`) | Aceptado: solo afecta a dependencias de desarrollo (`wrangler`/`miniflare`) que corren en la máquina local; no se usa `npm audit fix --force` (rompería versiones). Se revisa al actualizar `wrangler`. |
 | Fuentes de Google Fonts por plantilla | Aceptadas: son solo CSS, no bloquean la carga (espera máx. 2,5 s) y tienen fuentes del sistema de respaldo. Si se agrega una CSP, hay que incluir `fonts.googleapis.com` y `fonts.gstatic.com`. |
+
+## 13. Contrato v2 (2026-10-11): cifrado de extremo a extremo y endurecimiento
+
+Pedido del usuario: que los datos sensibles y las fotos no se vean en la nube, solo a través del enlace generado. Revisión de seguridad completa en `docs/seguridad.md` (agente `cyberbot`).
+
+### 13.1 Cifrado
+
+- `js/cifrado.js`: AES-GCM de 256 bits con WebCrypto, sin dependencias. Formato `[versión 1][IV 12 bytes][texto cifrado + etiqueta 16 bytes]`, en base64url sin relleno cuando va en JSON.
+- Datos asociados (AAD) por uso: `noviazgo/v2/propuesta`, `noviazgo/v2/foto` y `noviazgo/v2/evento`. Un bloque cifrado no se puede reutilizar en otro lugar.
+- **La llave** (32 bytes → 43 caracteres base64url) la genera el generador al cargar y viaja **solo en el fragmento**: `pregunta.html?id=<id>#c=<llave>` y `respuestas.html?id=<id>#k=<claveAdmin>&c=<llave>`. Los navegadores nunca mandan el fragmento al servidor ni en el `Referer`.
+- **Qué queda cifrado:** nombres, tipo, plantilla, textos de los pasos, `alt` de las fotos, pregunta, celebración (título y opciones), mensaje final, los **bytes de cada foto** y la elección de celebración con su nota.
+- **Qué ve el servidor:** el id, el hash de `claveAdmin`, la lista de ids de fotos, el tema ntfy, los tipos y horas de los eventos (abierto, intentos de No, sí) y metadatos de tamaño.
+- Si alguien pierde la llave, nadie, ni siquiera el servidor, puede recuperar el contenido. "Mis propuestas" (`localStorage`) guarda `claveCifrado` junto a `claveAdmin`.
+
+### 13.2 API v2
+
+| Ruta | Cambio |
+|------|--------|
+| `POST /fotos` | Solo `Content-Type: application/octet-stream`, ≤ `fotoCifradaBytes` (512 029). Debe empezar con el byte de versión `1`, medir ≥ 30 bytes y **no** parecer un JPEG/WebP en claro. Se guarda con `tipo_mime = application/octet-stream`. |
+| `GET /fotos/:id` | `application/octet-stream` + `Content-Disposition: attachment`. El frontend la baja con `fetch` (CORS), la descifra y detecta JPEG/WebP por bytes mágicos. |
+| `POST /propuestas` | Cuerpo `{ "v": 2, "cifrado": "<base64url 40–30 000>", "fotos": ["f_…"] (≤ 10, sin repetir), "avisos": { "push": bool } }`, `.strict()`. Con Turnstile activo exige la cabecera `X-Turnstile-Token`. Respuesta igual que v1. |
+| `GET /propuestas/:id` | v2: `{ v: 2, id, cifrado, fotos: [{ id, url }], creadaEn, expiraEn }`. v1 (heredadas): igual que §3.2. |
+| `POST /propuestas/:id/eventos` | `celebracion_elegida` v2: `{ tipo, sesion, cifrado }` (≤ 1 200 caracteres), sin `opcionId` ni `nota`. En propuestas v1 sigue `opcionId` + `nota`. Todos los esquemas `.strict()`. |
+| `GET /propuestas/:id/eventos` | v2: `para: null`; `cifrado` (contenido de la propuesta) **solo cuando `desde` es 0**; los eventos y `resumen.celebracion` de celebración llevan `{ cifrado }` en lugar de `opcionId`/`etiqueta`/`nota`. |
+| ntfy | v2: avisos genéricos sin nombre ni opción ("Abrieron tu enlace 👀", "¡Dijo que SÍ! 💖", "Ya eligió dónde celebrar 🎉"). |
+
+**Validación:** el servidor ya no puede validar textos ni el contenido de las fotos. Solo valida forma y tamaño. Las reglas de §3.3 se aplican en `js/validacion.js` antes de cifrar, y `pregunta.js` vuelve a normalizar y truncar al descifrar. Todo se sigue pintando con `textContent`.
+
+**Compatibilidad:** las propuestas v1 creadas antes del 2026-10-11 se siguen leyendo en claro hasta que expiren (30 días). Ya no se pueden crear propuestas v1.
+
+### 13.3 Endurecimiento
+
+- **HTTPS obligatorio en el Worker:** por `http://` fuera de localhost, `GET`/`HEAD` → `301` a `https://`, y el resto → `403 https_requerido`. HSTS de 2 años en las respuestas HTTPS. GitHub Pages ya redirige a HTTPS.
+- **Cabeceras de la API:** `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'; sandbox`, `X-Frame-Options: DENY`, `Cross-Origin-Resource-Policy: same-origin`, `Strict-Transport-Security`, además de las de §5.8.
+- **CSP del frontend** por `<meta>` en las tres páginas: `default-src 'self'`, scripts solo propios (más `challenges.cloudflare.com` en `index.html` para Turnstile), estilos propios + Google Fonts, `img-src 'self' blob:`, `connect-src` solo a la API (producción y `localhost:8787`), `object-src 'none'`, `base-uri 'none'` y `form-action 'self'`. **Si cambia la URL de la API, hay que actualizarla también en las tres CSP.** `frame-ancestors` no funciona por `<meta>` y Pages no permite cabeceras: el clickjacking queda como riesgo aceptado (ver `docs/seguridad.md`).
+- `<meta name="referrer" content="no-referrer">` en las tres páginas.
+- **Turnstile (opcional, desactivado por defecto):** `TURNSTILE_SITIO` en `js/config.js` y el secreto `TURNSTILE_SECRETO` en el Worker. Solo protege `POST /propuestas`, y falla cerrado si siteverify no responde (§9, paso 9b).
+
+### 13.4 Interfaz vigente de `js/api.js`
+
+```js
+export function       generarClave()                                   // → llave base64url (43)
+export async function subirFoto(blob, { clave, alProgresar })          // cifra y sube → { id, url, expiraEn }
+export async function crearPropuesta(propuesta, { clave, turnstile })  // valida (§3.3), cifra → { id, claveAdmin, expiraEn, ntfyTema }
+export async function obtenerPropuesta(id, clave)                      // → §3.2 en claro + cifrada: bool; ErrorApi llave_faltante | llave_invalida
+export async function cargarFoto(url, clave | null)                    // → URL blob: ya descifrada (null = foto v1 en claro)
+export async function cifrarEleccion(clave, { opcionId, nota })        // → texto cifrado para celebracion_elegida
+export function       enviarEvento(id, evento, { keepalive })          // NUNCA lanza
+export async function obtenerEventos(id, claveAdmin, desde, clave)     // → §5.2 ya descifrado + llaveFaltante
+export async function borrarPropuesta(id, claveAdmin)
+```
+
+El mock (`js/api-mock.js`) guarda lo mismo que el Worker (el sobre y las fotos cifradas) y aplica las mismas reglas de forma.

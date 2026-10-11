@@ -1,3 +1,7 @@
 # Copia este archivo como .dev.vars (está en .gitignore) y cambia los valores.
 # En producción: npx wrangler secret put SAL_IP
 SAL_IP=cambia-esto-por-un-texto-aleatorio-largo
+
+# Opcional: protección contra bots con Cloudflare Turnstile (ver docs/arquitectura.md §9, paso 9b).
+# Sin esta variable no se verifica nada. Clave de prueba de Cloudflare que siempre pasa:
+# TURNSTILE_SECRETO=1x0000000000000000000000000000000AA

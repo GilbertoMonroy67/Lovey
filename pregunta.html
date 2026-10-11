@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <!-- CSP (GitHub Pages no permite cabeceras propias; frame-ancestors no funciona por meta). La URL de la API debe coincidir con js/config.js. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob:; connect-src 'self' https://noviazgo-api.gilbertoalejandromonroymorales.workers.dev http://localhost:8787 http://127.0.0.1:8787; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Tienes una sorpresa 💌</title>
   <meta name="description" content="Alguien preparó algo especial para ti. Ábrelo cuando tengas un momento a solas.">

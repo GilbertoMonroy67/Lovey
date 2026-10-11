@@ -68,7 +68,9 @@ Mientras `API_BASE` tenga el marcador `TU-SUBDOMINIO`, el sitio publicado funcio
 
 ## Privacidad
 
+- **Cifrado de extremo a extremo:** nombres, textos, opciones, la nota y las fotos se cifran en el navegador (AES-GCM 256) antes de subirlos. En la nube (D1 y R2) solo hay datos ilegibles. La llave va en el fragmento `#c=…` de los enlaces y nunca llega al servidor, así que solo quien tiene el enlace puede ver la sorpresa.
 - La clave del panel privado viaja en el fragmento `#k=…` del enlace. Nunca llega a GitHub y el servidor solo guarda su hash.
 - Las fotos se comprimen en el navegador y se les quitan los metadatos (incluida la ubicación GPS) antes de subirlas.
 - La IP solo se usa, como hash con sal, para limitar abusos.
 - Todo expira a los 30 días, y quien envía puede borrar su propuesta antes desde el panel.
+- Controles de seguridad, auditorías y riesgos aceptados: [`docs/seguridad.md`](docs/seguridad.md).

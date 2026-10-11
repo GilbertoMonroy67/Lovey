@@ -8,11 +8,42 @@ describe('GET /salud y cabeceras', () => {
   it('responde ok con cabeceras de seguridad', async () => {
     const r = await pedir('/salud');
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ ok: true, version: 1 });
+    expect(await r.json()).toEqual({ ok: true, version: 2 });
     expect(r.headers.get('Content-Type')).toBe('application/json; charset=utf-8');
     expect(r.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');
     expect(r.headers.get('Cache-Control')).toBe('no-store');
+    expect(r.headers.get('Content-Security-Policy')).toBe("default-src 'none'; frame-ancestors 'none'; base-uri 'none'; sandbox");
+    expect(r.headers.get('X-Frame-Options')).toBe('DENY');
+    expect(r.headers.get('Cross-Origin-Resource-Policy')).toBe('same-origin');
+    expect(r.headers.get('Strict-Transport-Security')).toBe('max-age=63072000; includeSubDomains');
+  });
+
+  it('las respuestas de error también llevan las cabeceras de seguridad', async () => {
+    const r = await pedir('/propuestas/AAAAAAAAAAAA');
+    expect(r.status).toBe(404);
+    expect(r.headers.get('X-Frame-Options')).toBe('DENY');
+    expect(r.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
+  });
+});
+
+describe('HTTPS obligatorio', () => {
+  it('GET por http → 301 a https', async () => {
+    const r = await pedir('/salud', { base: 'http://api.test/api/v1' });
+    expect(r.status).toBe(301);
+    expect(r.headers.get('Location')).toBe('https://api.test/api/v1/salud');
+  });
+
+  it('POST por http → 403 https_requerido (no se reenvían cuerpos ni claves)', async () => {
+    const r = await pedir('/propuestas', { base: 'http://api.test/api/v1', method: 'POST', body: '{}' });
+    expect(r.status).toBe(403);
+    expect(((await r.json()) as any).error.codigo).toBe('https_requerido');
+  });
+
+  it('localhost por http se permite (wrangler dev) y sin HSTS', async () => {
+    const r = await pedir('/salud', { base: 'http://localhost:8787/api/v1' });
+    expect(r.status).toBe(200);
+    expect(r.headers.get('Strict-Transport-Security')).toBeNull();
   });
 
   it('ruta desconocida → 404 no_encontrado con formato uniforme', async () => {
@@ -49,7 +80,7 @@ describe('CORS', () => {
     expect(r.status).toBe(204);
     expect(r.headers.get('Access-Control-Allow-Origin')).toBe('http://127.0.0.1:5500');
     expect(r.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, DELETE, OPTIONS');
-    expect(r.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type, Authorization');
+    expect(r.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type, Authorization, X-Turnstile-Token');
     expect(r.headers.get('Access-Control-Max-Age')).toBe('86400');
   });
 

@@ -10,12 +10,14 @@ import { lanzarParticulas } from './particulas.js';
 import { obtenerPlantilla } from './plantillas.js';
 import {
   anunciar, copiarTexto, crear, enlacePregunta, enlaceRespuestas, formatearFechaHora, formatearHora,
-  leerMisPropuestas, mostrarAvisoDemo, quitarMiPropuesta, vaciar,
+  leerFragmento, leerMisPropuestas, mostrarAvisoDemo, quitarMiPropuesta, vaciar,
 } from './utilidades.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('id') ?? '';
-const clave = new URLSearchParams(location.hash.slice(1)).get('k') ?? '';
+// Ambas claves viven solo en el fragmento (#k=…&c=…): el navegador nunca las manda en la URL al servidor.
+const clave = leerFragmento('k');
+const claveCifrado = leerFragmento('c');
 const BACKOFF = [5000, 10000, 20000, 60000];
 const SONDEO_INACTIVO_MS = 15000;
 const SONDEO_TERMINADO_MS = 60000;
@@ -93,7 +95,7 @@ function describir(e) {
     case 'intento_no': return ['🙈', `Intentó decir que No (${e.conteo} ${e.conteo === 1 ? 'vez' : 'veces'})`];
     case 'si': return ['💖', '¡Dijo que SÍ!'];
     case 'celebracion_elegida':
-      return ['🎉', `Eligió celebrar en: ${e.etiqueta ?? e.opcionId}${e.nota ? `\n“${e.nota}”` : ''}`];
+      return ['🎉', `Eligió celebrar en: ${e.etiqueta ?? e.opcionId ?? 'una opción (cifrada)'}${e.nota ? `\n“${e.nota}”` : ''}`];
     default: return ['•', 'Evento'];
   }
 }
@@ -143,7 +145,7 @@ async function consultar() {
   try {
     let respuesta;
     do {
-      respuesta = await obtenerEventos(id, clave, estado.cursor);
+      respuesta = await obtenerEventos(id, clave, estado.cursor, claveCifrado);
       agregarEventos(respuesta.eventos ?? []);
       if ((respuesta.eventos ?? []).length) estado.ultimoCambio = Date.now();
       estado.cursor = respuesta.cursor ?? estado.cursor;
@@ -152,6 +154,10 @@ async function consultar() {
     pintarResumen(respuesta.resumen ?? {}, respuesta.para);
     if (respuesta.para) {
       $('titulo-panel').textContent = `Respuestas de ${respuesta.para}`;
+    }
+    if (respuesta.llaveFaltante) {
+      $('subtitulo-panel').textContent = 'Tu sorpresa está cifrada y a este enlace le falta la llave (&c=…): '
+        + 'verás si abrió y si dijo que sí, pero no el nombre ni el plan elegido.';
     }
     $('info-expira').textContent = respuesta.expiraEn
       ? `La sorpresa y sus respuestas se borran solas el ${formatearFechaHora(respuesta.expiraEn)}.` : '';
@@ -190,7 +196,7 @@ function mostrarSinClave() {
     lista.append(crear('li', {
       hijos: [
         crear('span', { texto: `Para ${p.para || '—'} · ${formatearFechaHora(p.creadaEn)}` }),
-        crear('a', { texto: 'Ver respuestas', atributos: { href: enlaceRespuestas(p.id, p.claveAdmin) } }),
+        crear('a', { texto: 'Ver respuestas', atributos: { href: enlaceRespuestas(p.id, p.claveAdmin, p.claveCifrado) } }),
       ],
     }));
   }
@@ -203,7 +209,7 @@ function iniciar() {
   if (!id || !clave) { mostrarSinClave(); return; }
 
   for (const s of ['panel', 'seccion-linea', 'seccion-enlaces']) $(s).hidden = false;
-  $('enlace-pareja').value = enlacePregunta(id);
+  $('enlace-pareja').value = enlacePregunta(id, claveCifrado);
   $('copiar-pareja').addEventListener('click', async () => {
     const ok = await copiarTexto($('enlace-pareja').value);
     $('confirmacion-pareja').textContent = ok ? '¡Copiado! ✓' : 'No se pudo copiar.';

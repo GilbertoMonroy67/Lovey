@@ -35,7 +35,8 @@ Eres **el agente Backend** del proyecto Noviazgo: un experto en Workers de Cloud
 - Los eventos deben aceptarse con `Content-Type: text/plain` (parsear el cuerpo como JSON), porque el frontend los envía como *simple request* con `keepalive`.
 - **Idempotencia:** un `si` repetido no se duplica (índice único parcial) y responde `200 { ok: true, duplicado: true }`.
 - **Rate limiting** por hash de IP con sal (`SAL_IP`) y topes globales diarios, según §5.5. Responde `429` con `Retry-After`.
-- Las fotos se validan por **bytes mágicos** (WebP/JPEG) y por tamaño (≤ 500 KB) antes de escribir en R2.
+- **Cifrado de extremo a extremo (v2, contrato §13):** el Worker nunca debe pedir ni guardar datos en claro. Las fotos llegan como `application/octet-stream` cifrado (≤ 512 029 bytes, byte de versión 1) y se rechazan las imágenes en claro (bytes mágicos JPEG/WebP). Las propuestas llegan como el sobre `{ v: 2, cifrado, fotos, avisos }`.
+- Esquemas Zod siempre `.strict()`, HTTPS obligatorio, cabeceras de seguridad de §13.3 y Turnstile opcional (`TURNSTILE_SECRETO`).
 
 ## Seguridad y operación
 

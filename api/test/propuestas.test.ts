@@ -1,6 +1,8 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
-import { crearPropuesta, json, pedir, propuestaValida, subirFoto } from './ayuda';
+import { LIMITES } from '../../js/limites.js';
+import { exigirHumano, verificarTurnstile } from '../src/turnstile';
+import { CIFRADO, crearPropuesta, crearPropuestaV1, json, pedir, propuestaValida, subirFoto } from './ayuda';
 
 async function crear(cuerpo: unknown) {
   return pedir('/propuestas', json(cuerpo));
@@ -11,22 +13,23 @@ async function erroresDe(r: Response) {
   return b.error;
 }
 
-describe('POST /propuestas', () => {
+describe('POST /propuestas (v2 cifrada)', () => {
   it('crea y devuelve id, claveAdmin, expiraEn y ntfyTema nulo', async () => {
     const r = await crear(propuestaValida());
     expect(r.status).toBe(201);
     const b = (await r.json()) as Record<string, string | null>;
+    expect(Object.keys(b).sort()).toEqual(['claveAdmin', 'expiraEn', 'id', 'ntfyTema']);
     expect(b.id).toMatch(/^[A-Za-z0-9]{12}$/);
     expect(b.claveAdmin).toMatch(/^[A-Za-z0-9]{32}$/);
     expect(b.ntfyTema).toBeNull();
     const dias = (Date.parse(b.expiraEn!) - Date.now()) / 86_400_000;
     expect(dias).toBeGreaterThan(29.9);
     expect(dias).toBeLessThanOrEqual(30);
-    // Solo se guarda el hash de la clave.
+    // Solo se guarda el hash de la clave y el sobre cifrado (nada en claro).
     const fila = await env.DB.prepare('SELECT clave_hash, datos FROM propuestas WHERE id = ?').bind(b.id).first<{ clave_hash: string; datos: string }>();
     expect(fila!.clave_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(fila!.clave_hash).not.toContain(b.claveAdmin);
-    expect(JSON.parse(fila!.datos)).not.toHaveProperty('avisos');
+    expect(JSON.parse(fila!.datos)).toEqual({ v: 2, cifrado: CIFRADO(), fotos: [] });
   });
 
   it('con avisos.push genera un tema ntfy secreto', async () => {
@@ -40,33 +43,22 @@ describe('POST /propuestas', () => {
     expect((await erroresDe(r)).codigo).toBe('json_invalido');
   });
 
-  it('cuerpo > 16 KB → 413', async () => {
-    const r = await crear(propuestaValida({ relleno: 'x'.repeat(17 * 1024) }));
+  it('cuerpo > 32 KB → 413', async () => {
+    const r = await crear(propuestaValida({ cifrado: CIFRADO(33 * 1024) }));
     expect(r.status).toBe(413);
     expect((await erroresDe(r)).codigo).toBe('archivo_muy_grande');
   });
 
   const casos: [string, Record<string, unknown>, string][] = [
-    ['v distinto de 1', { v: 2 }, 'v'],
-    ['plantilla con mayúsculas', { plantilla: 'Romantica' }, 'plantilla'],
-    ['tipo desconocido', { tipo: 'amante' }, 'tipo'],
-    ['de vacío tras trim', { de: '   ' }, 'de'],
-    ['para de 41 caracteres', { para: 'a'.repeat(41) }, 'para'],
-    ['0 pasos', { pasos: [] }, 'pasos'],
-    ['6 pasos', { pasos: Array.from({ length: 6 }, () => ({ texto: 'hola', fotos: [] })) }, 'pasos'],
-    ['texto de 281', { pasos: [{ texto: 'a'.repeat(281), fotos: [] }] }, 'pasos.0.texto'],
-    ['texto con carácter de control', { pasos: [{ texto: 'hola\u0007', fotos: [] }] }, 'pasos.0.texto'],
-    ['4 fotos en un paso', { pasos: [{ texto: 'a', fotos: Array.from({ length: 4 }, (_, i) => ({ id: `f_AAAAAAAAAAAAAAA${i}` })) }] }, 'pasos.0.fotos'],
-    ['id de foto con formato malo', { pasos: [{ texto: 'a', fotos: [{ id: 'foto1' }] }] }, 'pasos.0.fotos.0.id'],
-    ['alt de 101', { pasos: [{ texto: 'a', fotos: [{ id: 'f_AAAAAAAAAAAAAAAA', alt: 'a'.repeat(101) }] }] }, 'pasos.0.fotos.0.alt'],
-    ['pregunta de 121', { pregunta: 'a'.repeat(121) }, 'pregunta'],
-    ['pregunta con salto de línea', { pregunta: 'hola\nadiós' }, 'pregunta'],
-    ['título de celebración vacío', { celebracion: { titulo: '', opciones: [] } }, 'celebracion.titulo'],
-    ['9 opciones', { celebracion: { titulo: 't', opciones: Array.from({ length: 9 }, (_, i) => ({ id: `c${i}`, etiqueta: 'x' })) } }, 'celebracion.opciones'],
-    ['opción con id repetido', { celebracion: { titulo: 't', opciones: [{ id: 'btk', etiqueta: 'a' }, { id: 'btk', etiqueta: 'b' }] } }, 'celebracion.opciones.1.id'],
-    ['etiqueta de 41', { celebracion: { titulo: 't', opciones: [{ id: 'a', etiqueta: 'a'.repeat(41) }] } }, 'celebracion.opciones.0.etiqueta'],
-    ['emoji de 9', { celebracion: { titulo: 't', opciones: [{ id: 'a', etiqueta: 'a', emoji: '123456789' }] } }, 'celebracion.opciones.0.emoji'],
-    ['mensajeFinal de 201', { mensajeFinal: 'a'.repeat(201) }, 'mensajeFinal'],
+    ['v = 1 (ya no se crean propuestas sin cifrar)', { v: 1 }, 'v'],
+    ['sin cifrado', { cifrado: undefined }, 'cifrado'],
+    ['cifrado con caracteres fuera de base64url', { cifrado: CIFRADO(100) + '+/=' }, 'cifrado'],
+    ['cifrado demasiado corto', { cifrado: CIFRADO(39) }, 'cifrado'],
+    ['cifrado demasiado largo', { cifrado: CIFRADO(LIMITES.cifradoPropuesta + 1) }, 'cifrado'],
+    ['11 fotos', { fotos: Array.from({ length: 11 }, (_, i) => `f_AAAAAAAAAAAAAA${String(i).padStart(2, '0')}`) }, 'fotos'],
+    ['id de foto con formato malo', { fotos: ['foto1'] }, 'fotos.0'],
+    ['foto repetida', { fotos: ['f_AAAAAAAAAAAAAAAA', 'f_AAAAAAAAAAAAAAAA'] }, 'fotos'],
+    ['avisos con campos extra', { avisos: { push: true, tema: 'elegido-por-mi' } }, 'avisos'],
   ];
 
   it.each(casos)('%s → 422 validacion', async (_n, cambios, campo) => {
@@ -77,71 +69,45 @@ describe('POST /propuestas', () => {
     expect(e.detalles!.map((d) => d.campo)).toContain(campo);
   });
 
-  it('más de 10 fotos en total → 422', async () => {
-    const pasos = Array.from({ length: 4 }, (_, p) => ({
-      texto: 'a',
-      fotos: Array.from({ length: 3 }, (_, i) => ({ id: `f_AAAAAAAAAAAAAA${p}${i}` })),
-    }));
-    const r = await crear(propuestaValida({ pasos }));
+  // Manipulación de campos: lo que fija el servidor (id, clave, fechas, tema) no se puede mandar.
+  it.each([
+    ['id', { id: 'AAAAAAAAAAAA' }],
+    ['claveAdmin', { claveAdmin: 'x'.repeat(32) }],
+    ['expiraEn', { expiraEn: '2099-01-01T00:00:00Z' }],
+    ['ntfyTema', { ntfyTema: 'mi-tema' }],
+    ['campos v1 en claro', { para: 'Ana' }],
+  ])('campo no permitido "%s" → 422', async (_n, extra) => {
+    const r = await crear(propuestaValida(extra));
     expect(r.status).toBe(422);
-    expect((await erroresDe(r)).detalles!.map((d) => d.campo)).toContain('pasos');
-  });
-
-  it('acepta los valores en el borde de los límites y normaliza con trim', async () => {
-    const r = await crear(
-      propuestaValida({
-        de: '  ' + 'a'.repeat(40) + '  ',
-        pasos: Array.from({ length: 5 }, () => ({ texto: 'b'.repeat(280), fotos: [] })),
-        pregunta: 'c'.repeat(120),
-        celebracion: undefined,
-        mensajeFinal: '',
-      }),
-    );
-    expect(r.status).toBe(201);
-    const { id } = (await r.json()) as { id: string };
-    const g = (await (await pedir(`/propuestas/${id}`)).json()) as Record<string, unknown>;
-    expect(g.de).toBe('a'.repeat(40));
-    expect(g).not.toHaveProperty('celebracion');
-  });
-
-  // Criterio único de longitud (contrato §3.3): code points, igual que largo() de js/utilidades.js.
-  // Zod ≥ 4.6 cuenta code points en .min/.max de strings; este test fija ese comportamiento.
-  it('cuenta la longitud en code points (emojis), igual que el frontend', async () => {
-    const ok = await crear(
-      propuestaValida({
-        pasos: [{ texto: '💖'.repeat(280), fotos: [] }],
-        celebracion: { titulo: 't', opciones: [{ id: 'a', etiqueta: 'a', emoji: '👨‍👩‍👧‍👦' }] },
-      }),
-    );
-    expect(ok.status).toBe(201);
-    const largo = await crear(propuestaValida({ pasos: [{ texto: '💖'.repeat(281), fotos: [] }] }));
-    expect(largo.status).toBe(422);
-    expect((await erroresDe(largo)).detalles!.map((d) => d.campo)).toContain('pasos.0.texto');
+    expect((await erroresDe(r)).codigo).toBe('validacion');
   });
 
   it('una foto inexistente → 422 foto_invalida', async () => {
-    const r = await crear(propuestaValida({ pasos: [{ texto: 'a', fotos: [{ id: 'f_AAAAAAAAAAAAAAAA' }] }] }));
+    const r = await crear(propuestaValida({ fotos: ['f_AAAAAAAAAAAAAAAA'] }));
     expect(r.status).toBe(422);
     expect((await erroresDe(r)).codigo).toBe('foto_invalida');
   });
 });
 
 describe('GET /propuestas/:id', () => {
-  it('devuelve §3.2: sin avisos, con url de fotos y fechas', async () => {
+  it('v2: devuelve solo el sobre cifrado, las URLs de las fotos y las fechas', async () => {
     const foto = (await (await subirFoto()).json()) as { id: string };
-    const { id } = await crearPropuesta({
-      avisos: { push: true },
-      pasos: [{ texto: 'Primer paso', fotos: [{ id: foto.id, alt: 'Nuestra cita' }] }],
-    });
+    const { id } = await crearPropuesta({ avisos: { push: true }, fotos: [foto.id] });
     const r = await pedir(`/propuestas/${id}`);
     expect(r.status).toBe(200);
     expect(r.headers.get('Cache-Control')).toBe('no-store');
     const b = (await r.json()) as Record<string, any>;
-    expect(b).not.toHaveProperty('avisos');
-    expect(b).toMatchObject({ v: 1, id, plantilla: 'romantica', tipo: 'novia', de: 'Gilberto', para: 'Ana' });
-    expect(b.pasos[0].fotos[0]).toEqual({ id: foto.id, url: `http://api.test/api/v1/fotos/${foto.id}`, alt: 'Nuestra cita' });
-    expect(b.celebracion.opciones).toHaveLength(2);
+    expect(Object.keys(b).sort()).toEqual(['cifrado', 'creadaEn', 'expiraEn', 'fotos', 'id', 'v']);
+    expect(b).toMatchObject({ v: 2, id, cifrado: CIFRADO() });
+    expect(b.fotos).toEqual([{ id: foto.id, url: `https://api.test/api/v1/fotos/${foto.id}` }]);
     expect(Date.parse(b.creadaEn)).toBeLessThan(Date.parse(b.expiraEn));
+  });
+
+  it('v1 heredada: se sigue leyendo en claro hasta que expire', async () => {
+    const { id } = await crearPropuestaV1();
+    const b = (await (await pedir(`/propuestas/${id}`)).json()) as Record<string, any>;
+    expect(b).toMatchObject({ v: 1, id, plantilla: 'romantica', tipo: 'novia', de: 'Gilberto', para: 'Ana' });
+    expect(b.celebracion.opciones).toHaveLength(2);
   });
 
   it('id inexistente o mal formado → 404', async () => {
@@ -162,7 +128,7 @@ describe('GET /propuestas/:id', () => {
 describe('DELETE /propuestas/:id', () => {
   it('sin clave → 401; clave incorrecta → 401; correcta → 204 y borra todo', async () => {
     const foto = (await (await subirFoto()).json()) as { id: string };
-    const { id, claveAdmin } = await crearPropuesta({ pasos: [{ texto: 'a', fotos: [{ id: foto.id }] }] });
+    const { id, claveAdmin } = await crearPropuesta({ fotos: [foto.id] });
     await pedir(`/propuestas/${id}/eventos`, { method: 'POST', body: JSON.stringify({ tipo: 'abierto', sesion: 'Qw8e7r6t5y4u3i2o' }) });
 
     expect((await pedir(`/propuestas/${id}`, { method: 'DELETE' })).status).toBe(401);
@@ -183,12 +149,48 @@ describe('DELETE /propuestas/:id', () => {
   });
 });
 
+describe('Turnstile (protección contra bots)', () => {
+  const respuesta = (exito: boolean) =>
+    (async () => new Response(JSON.stringify({ success: exito }), { status: 200 })) as unknown as typeof fetch;
+  const conToken = (token?: string) =>
+    new Request('https://api.test/api/v1/propuestas', { method: 'POST', headers: token ? { 'X-Turnstile-Token': token } : {} });
+
+  it('sin secreto configurado no se verifica nada', async () => {
+    await expect(exigirHumano(conToken(), undefined)).resolves.toBeUndefined();
+  });
+
+  it('con secreto: sin token o con token rechazado → 403 verificacion_bot; válido → pasa', async () => {
+    await expect(exigirHumano(conToken(), 'secreto', respuesta(true))).rejects.toMatchObject({ estado: 403, codigo: 'verificacion_bot' });
+    await expect(exigirHumano(conToken('malo'), 'secreto', respuesta(false))).rejects.toMatchObject({ codigo: 'verificacion_bot' });
+    await expect(exigirHumano(conToken('bueno'), 'secreto', respuesta(true))).resolves.toBeUndefined();
+  });
+
+  it('si siteverify no responde, falla cerrada', async () => {
+    const roto = (async () => {
+      throw new TypeError('sin red');
+    }) as unknown as typeof fetch;
+    expect(await verificarTurnstile('secreto', 'token', '1.2.3.4', roto)).toBe(false);
+  });
+
+  it('manda secreto, token e IP a siteverify', async () => {
+    let cuerpo: FormData | null = null;
+    const falso = (async (_url: string, init: RequestInit) => {
+      cuerpo = init.body as FormData;
+      return new Response('{"success":true}');
+    }) as unknown as typeof fetch;
+    expect(await verificarTurnstile('s3cr3t', 'tok', '1.2.3.4', falso)).toBe(true);
+    expect(cuerpo!.get('secret')).toBe('s3cr3t');
+    expect(cuerpo!.get('response')).toBe('tok');
+    expect(cuerpo!.get('remoteip')).toBe('1.2.3.4');
+  });
+});
+
 describe('mensajes de validación', () => {
   it('los mensajes genéricos de Zod salen en español', async () => {
-    const r = await pedir('/propuestas', json({ v: 1 }));
+    const r = await pedir('/propuestas', json({ v: 2, cifrado: CIFRADO(), fotos: 'no-es-lista' }));
     const e = (await r.json()) as { error: { detalles: { campo: string; mensaje: string }[] } };
-    const plantilla = e.error.detalles.find((d) => d.campo === 'plantilla')!;
-    expect(plantilla.mensaje).not.toMatch(/Invalid input/);
-    expect(plantilla.mensaje).toMatch(/inválid|Se esperaba/i);
+    const fotos = e.error.detalles.find((d) => d.campo === 'fotos')!;
+    expect(fotos.mensaje).not.toMatch(/Invalid input/);
+    expect(fotos.mensaje).toMatch(/inválid|Se esperaba/i);
   });
 });

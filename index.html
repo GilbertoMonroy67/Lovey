@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <!-- CSP (GitHub Pages no permite cabeceras propias; frame-ancestors no funciona por meta). La URL de la API debe coincidir con js/config.js. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob:; connect-src 'self' https://noviazgo-api.gilbertoalejandromonroymorales.workers.dev http://localhost:8787 http://127.0.0.1:8787; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Noviazgo · Pídeselo de una forma inolvidable</title>
   <meta name="description" content="Crea una sorpresa con palabras bonitas y fotos para pedirle a esa persona especial que sea tu pareja. El botón «No» huye.">
@@ -130,6 +133,8 @@
       </section>
 
       <div class="resumen-errores" id="resumen-errores" role="alert" tabindex="-1" hidden></div>
+      <!-- Verificación anti-bots (Cloudflare Turnstile): solo aparece si está configurada en js/config.js. -->
+      <div class="caja-turnstile" id="turnstile" hidden></div>
 
       <div class="acciones-generador">
         <button type="button" class="boton boton-fantasma" id="boton-vista-previa">👀 Vista previa</button>

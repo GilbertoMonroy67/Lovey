@@ -30,4 +30,5 @@
     "NTFY_BASE": "https://ntfy.sh"
   }
   // Secretos (no van aquí): SAL_IP → `npx wrangler secret put SAL_IP`; en local, archivo .dev.vars.
+  // Opcional: TURNSTILE_SECRETO → `npx wrangler secret put TURNSTILE_SECRETO` (protección contra bots).
 }

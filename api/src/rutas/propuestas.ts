@@ -1,11 +1,13 @@
 // POST /propuestas, GET /propuestas/:id y DELETE /propuestas/:id (docs/arquitectura.md §3 y §5.1).
+// v2: el contenido llega cifrado de extremo a extremo; el servidor guarda el sobre tal cual.
 import { Hono } from 'hono';
 import { LIMITES } from '../../../js/limites.js';
 import { cargarPropuesta, iso, urlFoto, verificarAdmin } from '../comun';
 import { ErrorApi } from '../errores';
-import { esquemaPropuesta, leerJson, validar, type DatosPropuesta } from '../esquemas';
+import { esCifrada, esquemaPropuesta, leerJson, validar, type DatosPropuesta, type DatosPropuestaV2 } from '../esquemas';
 import { nuevaClaveAdmin, nuevoIdPropuesta, nuevoTemaNtfy, sha256Hex } from '../ids';
 import { hashIp, limitar } from '../limite-tasa';
+import { exigirHumano } from '../turnstile';
 import { MS_DIA, MS_HORA, type AppEnv } from '../tipos';
 
 export const rutasPropuestas = new Hono<AppEnv>();
@@ -14,9 +16,12 @@ rutasPropuestas.post('/', async (c) => {
   const ahora = Date.now();
   const ipHash = await hashIp(c.req.raw, c.env.SAL_IP);
   await limitar(c.env.DB, 'propuestas', ipHash, ahora);
+  await exigirHumano(c.req.raw, c.env.TURNSTILE_SECRETO);
 
-  const { avisos, ...datos } = validar(esquemaPropuesta, await leerJson(c.req.raw));
-  const idsFotos = datos.pasos.flatMap((p) => p.fotos.map((f) => f.id));
+  const { avisos, ...sobre } = validar(esquemaPropuesta, await leerJson(c.req.raw));
+  // Se arma explícitamente: solo estos campos llegan a D1.
+  const datos: DatosPropuestaV2 = { v: sobre.v, cifrado: sobre.cifrado, fotos: sobre.fotos };
+  const idsFotos = datos.fotos;
 
   // Cada foto debe existir, estar libre (huérfana) y no haber expirado.
   if (idsFotos.length) {
@@ -69,8 +74,21 @@ rutasPropuestas.post('/', async (c) => {
   return c.json({ id, claveAdmin, expiraEn: iso(expiraEn), ntfyTema }, 201);
 });
 
-/** Arma la respuesta pública de §3.2 (sin `avisos`, con URL por foto). */
+/**
+ * Arma la respuesta pública de §3.2 con solo lo necesario: nunca el hash de la clave, el tema de ntfy
+ * ni datos de las fotos más allá de su id y su URL.
+ */
 export function propuestaPublica(req: Request, id: string, datos: DatosPropuesta, creada: number, expira: number) {
+  if (esCifrada(datos)) {
+    return {
+      v: datos.v,
+      id,
+      cifrado: datos.cifrado,
+      fotos: datos.fotos.map((f) => ({ id: f, url: urlFoto(req, f) })),
+      creadaEn: iso(creada),
+      expiraEn: iso(expira),
+    };
+  }
   const { v, ...resto } = datos;
   return {
     v,

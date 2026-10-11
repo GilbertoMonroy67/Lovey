@@ -13,6 +13,8 @@ export type CodigoError =
   | 'foto_invalida'
   | 'demasiadas_solicitudes'
   | 'capacidad_agotada'
+  | 'verificacion_bot'
+  | 'https_requerido'
   | 'interno';
 
 export interface DetalleError {
@@ -27,11 +29,13 @@ const MENSAJES: Record<CodigoError, string> = {
   expirada: 'Esta propuesta ya expiró.',
   limite_eventos: 'Esta propuesta ya no acepta más eventos.',
   archivo_muy_grande: 'El contenido es demasiado grande.',
-  tipo_no_soportado: 'Formato no compatible: solo se aceptan fotos WebP o JPEG.',
+  tipo_no_soportado: 'Formato no compatible: la foto debe llegar cifrada desde la app.',
   validacion: 'Algunos datos no son válidos.',
   foto_invalida: 'Una de las fotos no existe, ya se usó o expiró. Vuelve a subirla.',
   demasiadas_solicitudes: 'Demasiadas solicitudes. Espera un momento y vuelve a intentarlo.',
   capacidad_agotada: 'Hoy se alcanzó el límite del servicio. Inténtalo mañana.',
+  verificacion_bot: 'No pudimos verificar que eres una persona. Recarga la página e inténtalo de nuevo.',
+  https_requerido: 'Esta API solo acepta conexiones seguras (HTTPS).',
   interno: 'Ocurrió un error inesperado. Inténtalo de nuevo.',
 };
 

@@ -2,7 +2,7 @@
 // Los límites vienen de la fuente única compartida con el frontend.
 import { z } from 'zod';
 import { es } from 'zod/locales';
-import { LIMITES, PATRONES, TIPOS, TIPOS_EVENTO, VERSION_PROPUESTA } from '../../js/limites.js';
+import { LIMITES, PATRONES, TIPOS_EVENTO, VERSION_PROPUESTA } from '../../js/limites.js';
 import { ErrorApi, type DetalleError } from './errores';
 
 // Mensajes genéricos de Zod en español (los específicos se definen en cada regla).
@@ -25,67 +25,55 @@ function texto(min: number, max: number, multilinea = false) {
     );
 }
 
-const foto = z.object({
-  id: z.string().regex(PATRONES.idFoto, 'Id de foto inválido.'),
-  alt: texto(0, LIMITES.altFoto.max).optional().default(''),
-});
+const idFoto = z.string().regex(PATRONES.idFoto, 'Id de foto inválido.');
 
-const paso = z.object({
-  texto: texto(LIMITES.textoPaso.min, LIMITES.textoPaso.max, true),
-  fotos: z.array(foto).max(LIMITES.fotosPorPaso.max, `Máximo ${LIMITES.fotosPorPaso.max} fotos por paso.`).default([]),
-});
+/** Texto cifrado en base64url (el servidor no puede leerlo: solo valida su forma y su tamaño). */
+const cifrado = (max: number) =>
+  z
+    .string({ error: 'Debe ser texto cifrado.' })
+    .min(40, 'El contenido cifrado está incompleto.')
+    .max(max, 'El contenido cifrado es demasiado grande.')
+    .regex(PATRONES.cifrado, 'El contenido cifrado no es válido.');
 
-const opcion = z.object({
-  id: z.string().regex(PATRONES.idOpcion, 'Id de opción inválido.'),
-  etiqueta: texto(LIMITES.etiquetaOpcion.min, LIMITES.etiquetaOpcion.max),
-  emoji: texto(0, LIMITES.emojiOpcion.max).optional(),
-});
-
-const celebracion = z.object({
-  titulo: texto(LIMITES.tituloCelebracion.min, LIMITES.tituloCelebracion.max),
-  opciones: z
-    .array(opcion)
-    .max(LIMITES.opcionesCelebracion.max, `Máximo ${LIMITES.opcionesCelebracion.max} opciones.`)
-    .default([]),
-});
-
+/**
+ * Sobre de la propuesta v2 (docs/arquitectura.md §3). El contenido (nombres, textos, pregunta,
+ * celebración) llega cifrado de extremo a extremo; el servidor solo necesita las fotos para
+ * asociarlas y borrarlas. `.strict()` rechaza cualquier campo extra (manipulación de campos).
+ */
 export const esquemaPropuesta = z
   .object({
     v: z.literal(VERSION_PROPUESTA, { error: `La versión debe ser ${VERSION_PROPUESTA}.` }),
-    plantilla: z.string().regex(PATRONES.idPlantilla, 'Id de plantilla inválido.'),
-    tipo: z.enum(TIPOS as unknown as [string, ...string[]], { error: 'Tipo de pregunta inválido.' }),
-    de: texto(LIMITES.nombre.min, LIMITES.nombre.max),
-    para: texto(LIMITES.nombre.min, LIMITES.nombre.max),
-    pasos: z
-      .array(paso)
-      .min(LIMITES.pasos.min, `Debe haber al menos ${LIMITES.pasos.min} paso.`)
-      .max(LIMITES.pasos.max, `Máximo ${LIMITES.pasos.max} pasos.`),
-    pregunta: texto(LIMITES.pregunta.min, LIMITES.pregunta.max),
-    celebracion: celebracion.optional(),
-    mensajeFinal: texto(0, LIMITES.mensajeFinal.max, true).optional().default(''),
-    avisos: z.object({ push: z.boolean().default(false) }).optional().default({ push: false }),
+    cifrado: cifrado(LIMITES.cifradoPropuesta),
+    fotos: z.array(idFoto).max(LIMITES.fotosTotales.max, `Máximo ${LIMITES.fotosTotales.max} fotos en total.`).default([]),
+    avisos: z.object({ push: z.boolean().default(false) }).strict().optional().default({ push: false }),
   })
+  .strict()
   .superRefine((p, ctx) => {
-    const ids = p.pasos.flatMap((s) => s.fotos.map((f) => f.id));
-    if (ids.length > LIMITES.fotosTotales.max) {
-      ctx.addIssue({ code: 'custom', path: ['pasos'], message: `Máximo ${LIMITES.fotosTotales.max} fotos en total.` });
+    if (new Set(p.fotos).size !== p.fotos.length) {
+      ctx.addIssue({ code: 'custom', path: ['fotos'], message: 'Una foto no puede repetirse.' });
     }
-    if (new Set(ids).size !== ids.length) {
-      ctx.addIssue({ code: 'custom', path: ['pasos'], message: 'Una foto no puede repetirse.' });
-    }
-    const opciones = p.celebracion?.opciones ?? [];
-    const vistos = new Set<string>();
-    opciones.forEach((o, i) => {
-      if (vistos.has(o.id)) {
-        ctx.addIssue({ code: 'custom', path: ['celebracion', 'opciones', i, 'id'], message: 'Id de opción repetido.' });
-      }
-      vistos.add(o.id);
-    });
   });
 
 export type Propuesta = z.output<typeof esquemaPropuesta>;
-/** Lo que se guarda en `propuestas.datos` (§3.1 sin `avisos`). */
-export type DatosPropuesta = Omit<Propuesta, 'avisos'>;
+/** Lo que se guarda en `propuestas.datos` para una propuesta v2 (sin `avisos`). */
+export type DatosPropuestaV2 = Omit<Propuesta, 'avisos'>;
+
+/** Propuestas v1 (anteriores al cifrado): solo se leen hasta que expiren. */
+export interface DatosPropuestaV1 {
+  v: 1;
+  plantilla: string;
+  tipo: string;
+  de: string;
+  para: string;
+  pasos: { texto: string; fotos: { id: string; alt: string }[] }[];
+  pregunta: string;
+  celebracion?: { titulo: string; opciones: { id: string; etiqueta: string; emoji?: string }[] };
+  mensajeFinal: string;
+}
+
+export type DatosPropuesta = DatosPropuestaV1 | DatosPropuestaV2;
+
+export const esCifrada = (d: DatosPropuesta): d is DatosPropuestaV2 => d.v === VERSION_PROPUESTA;
 
 const sesion = z.string().regex(PATRONES.sesion, 'Sesión inválida.');
 const [T_ABIERTO, T_INTENTO_NO, T_SI, T_CELEBRACION] = TIPOS_EVENTO as unknown as [
@@ -98,23 +86,33 @@ const [T_ABIERTO, T_INTENTO_NO, T_SI, T_CELEBRACION] = TIPOS_EVENTO as unknown a
 export const esquemaEvento = z.discriminatedUnion(
   'tipo',
   [
-    z.object({ tipo: z.literal(T_ABIERTO), sesion }),
-    z.object({
-      tipo: z.literal(T_INTENTO_NO),
-      sesion,
-      conteo: z
-        .number({ error: 'Debe ser un número.' })
-        .int('Debe ser un entero.')
-        .min(LIMITES.conteoIntentoNo.min)
-        .max(LIMITES.conteoIntentoNo.max),
-    }),
-    z.object({ tipo: z.literal(T_SI), sesion }),
-    z.object({
-      tipo: z.literal(T_CELEBRACION),
-      sesion,
-      opcionId: z.string().regex(PATRONES.idOpcion, 'Id de opción inválido.'),
-      nota: texto(0, LIMITES.nota.max, true).optional(),
-    }),
+    z.object({ tipo: z.literal(T_ABIERTO), sesion }).strict(),
+    z
+      .object({
+        tipo: z.literal(T_INTENTO_NO),
+        sesion,
+        conteo: z
+          .number({ error: 'Debe ser un número.' })
+          .int('Debe ser un entero.')
+          .min(LIMITES.conteoIntentoNo.min)
+          .max(LIMITES.conteoIntentoNo.max),
+      })
+      .strict(),
+    z.object({ tipo: z.literal(T_SI), sesion }).strict(),
+    // v2: la opción elegida y la nota llegan cifradas en `cifrado`. v1: `opcionId` y `nota` en claro.
+    z
+      .object({
+        tipo: z.literal(T_CELEBRACION),
+        sesion,
+        cifrado: cifrado(LIMITES.cifradoEvento).optional(),
+        opcionId: z.string().regex(PATRONES.idOpcion, 'Id de opción inválido.').optional(),
+        nota: texto(0, LIMITES.nota.max, true).optional(),
+      })
+      .strict()
+      .refine((e) => Boolean(e.cifrado) !== Boolean(e.opcionId), {
+        message: 'Envía la elección cifrada o el id de la opción, no ambos.',
+        path: ['cifrado'],
+      }),
   ],
   { error: 'Tipo de evento inválido.' },
 );
@@ -136,9 +134,9 @@ export function validar<T extends z.ZodType>(esquema: T, datos: unknown): z.outp
 export async function leerJson(req: Request): Promise<unknown> {
   const max = LIMITES.cuerpoJsonBytes;
   const declarado = Number(req.headers.get('Content-Length') ?? '0');
-  if (declarado > max) throw new ErrorApi(413, 'archivo_muy_grande', 'Los datos son demasiado grandes (máximo 16 KB).');
+  if (declarado > max) throw new ErrorApi(413, 'archivo_muy_grande', 'Los datos son demasiado grandes (máximo 32 KB).');
   const bytes = await req.arrayBuffer();
-  if (bytes.byteLength > max) throw new ErrorApi(413, 'archivo_muy_grande', 'Los datos son demasiado grandes (máximo 16 KB).');
+  if (bytes.byteLength > max) throw new ErrorApi(413, 'archivo_muy_grande', 'Los datos son demasiado grandes (máximo 32 KB).');
   try {
     return JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes));
   } catch {

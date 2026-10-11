@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { LIMITES } from '../../../js/limites.js';
 import { cargarPropuesta, iso, verificarAdmin } from '../comun';
 import { ErrorApi } from '../errores';
-import { esquemaEvento, leerJson, validar, type DatosPropuesta } from '../esquemas';
+import { esCifrada, esquemaEvento, leerJson, validar, type DatosPropuesta } from '../esquemas';
 import { hashIp, limitar } from '../limite-tasa';
 import { construirAviso, publicarNtfy } from '../ntfy';
 import type { AppEnv } from '../tipos';
@@ -19,7 +19,9 @@ interface FilaEvento {
 }
 
 const etiquetaDe = (datos: DatosPropuesta, opcionId: string) =>
-  datos.celebracion?.opciones.find((o) => o.id === opcionId)?.etiqueta ?? null;
+  esCifrada(datos) ? null : (datos.celebracion?.opciones.find((o) => o.id === opcionId)?.etiqueta ?? null);
+
+const errorCampo = (campo: string, mensaje: string) => new ErrorApi(422, 'validacion', undefined, [{ campo, mensaje }]);
 
 export const rutasEventos = new Hono<AppEnv>();
 
@@ -32,12 +34,16 @@ rutasEventos.post('/:id/eventos', async (c) => {
   let extra: Record<string, unknown> | null = null;
   if (evento.tipo === 'intento_no') extra = { conteo: evento.conteo };
   if (evento.tipo === 'celebracion_elegida') {
-    if (!etiquetaDe(datos, evento.opcionId)) {
-      throw new ErrorApi(422, 'validacion', undefined, [
-        { campo: 'opcionId', mensaje: 'La opción no existe en esta propuesta.' },
-      ]);
+    if (esCifrada(datos)) {
+      // v2: la opción y la nota van cifradas; el servidor no puede (ni debe) leerlas.
+      if (!evento.cifrado) throw errorCampo('cifrado', 'En esta propuesta la elección debe ir cifrada.');
+      extra = { cifrado: evento.cifrado };
+    } else {
+      if (!evento.opcionId || !etiquetaDe(datos, evento.opcionId)) {
+        throw errorCampo('opcionId', 'La opción no existe en esta propuesta.');
+      }
+      extra = { opcionId: evento.opcionId, nota: evento.nota || null };
     }
-    extra = { opcionId: evento.opcionId, nota: evento.nota || null };
   }
 
   const cuenta = await c.env.DB.prepare(
@@ -65,10 +71,11 @@ rutasEventos.post('/:id/eventos', async (c) => {
   if (r.meta.changes === 0) return c.json({ ok: true, duplicado: true }, 200);
 
   if (fila.ntfy_tema) {
+    // En v2 el servidor no conoce el nombre ni la opción: el aviso es genérico.
     const aviso = construirAviso(
       evento.tipo,
-      datos.para,
-      evento.tipo === 'celebracion_elegida' ? etiquetaDe(datos, evento.opcionId) : null,
+      esCifrada(datos) ? null : datos.para,
+      evento.tipo === 'celebracion_elegida' && evento.opcionId ? etiquetaDe(datos, evento.opcionId) : null,
     );
     if (aviso) c.executionCtx.waitUntil(publicarNtfy(c.env.NTFY_BASE, fila.ntfy_tema, aviso));
   }
@@ -82,6 +89,7 @@ function eventoPublico(e: FilaEvento, datos: DatosPropuesta) {
   const extra = e.datos ? (JSON.parse(e.datos) as Record<string, unknown>) : {};
   if (e.tipo === 'intento_no') return { ...base, conteo: Number(extra.conteo ?? 0) };
   if (e.tipo === 'celebracion_elegida') {
+    if (typeof extra.cifrado === 'string') return { ...base, cifrado: extra.cifrado };
     const opcionId = String(extra.opcionId ?? '');
     return { ...base, opcionId, etiqueta: etiquetaDe(datos, opcionId), nota: (extra.nota as string | null) ?? null };
   }
@@ -98,7 +106,10 @@ export function calcularResumen(eventos: EventoPublico[]) {
     intentosNo: 0,
     si: false,
     siEn: null as string | null,
-    celebracion: null as null | { opcionId: string; etiqueta: string | null; nota: string | null; en: string },
+    celebracion: null as
+      | null
+      | { opcionId: string; etiqueta: string | null; nota: string | null; en: string }
+      | { cifrado: string; en: string },
   };
   for (const e of eventos) {
     if (e.tipo === 'abierto') {
@@ -110,9 +121,12 @@ export function calcularResumen(eventos: EventoPublico[]) {
     } else if (e.tipo === 'si') {
       resumen.si = true;
       resumen.siEn ??= e.creadoEn;
-    } else if (e.tipo === 'celebracion_elegida' && 'opcionId' in e) {
+    } else if (e.tipo === 'celebracion_elegida') {
       // La última elección es la que cuenta.
-      resumen.celebracion = { opcionId: e.opcionId, etiqueta: e.etiqueta, nota: e.nota, en: e.creadoEn };
+      if ('cifrado' in e) resumen.celebracion = { cifrado: e.cifrado, en: e.creadoEn };
+      else if ('opcionId' in e) {
+        resumen.celebracion = { opcionId: e.opcionId, etiqueta: e.etiqueta, nota: e.nota, en: e.creadoEn };
+      }
     }
   }
   return resumen;
@@ -143,7 +157,10 @@ rutasEventos.get('/:id/eventos', async (c) => {
     eventos: pagina,
     cursor: pagina.length ? pagina[pagina.length - 1]!.id : desde,
     resumen: calcularResumen(todos),
-    para: datos.para,
+    // v2: el nombre va dentro del contenido cifrado, que solo se manda en la primera consulta
+    // (desde = 0) para que el panel lo descifre una vez y no gaste ancho de banda en cada sondeo.
+    para: esCifrada(datos) ? null : datos.para,
+    ...(esCifrada(datos) && desde === 0 ? { cifrado: datos.cifrado } : {}),
     expiraEn: iso(fila.expira_en),
     ntfyTema: fila.ntfy_tema,
   });

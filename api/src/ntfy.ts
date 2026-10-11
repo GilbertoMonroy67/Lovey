@@ -6,20 +6,26 @@ export interface AvisoNtfy {
   etiquetas?: string[];
 }
 
+/**
+ * `para` es null en las propuestas cifradas (v2): el servidor no conoce el nombre ni la opción,
+ * así que el aviso es genérico y el detalle se ve en el panel privado.
+ */
 export function construirAviso(
   tipo: string,
-  para: string,
+  para: string | null,
   etiquetaCelebracion?: string | null,
 ): AvisoNtfy | null {
   switch (tipo) {
     case 'abierto':
-      return { titulo: 'Noviazgo', mensaje: `${para} abrió tu enlace`, etiquetas: ['eyes'] };
+      return { titulo: 'Noviazgo', mensaje: para ? `${para} abrió tu enlace` : 'Abrieron tu enlace 👀', etiquetas: ['eyes'] };
     case 'si':
-      return { titulo: 'Noviazgo', mensaje: `¡${para} dijo que SÍ! 💖`, etiquetas: ['tada'] };
+      return { titulo: 'Noviazgo', mensaje: para ? `¡${para} dijo que SÍ! 💖` : '¡Dijo que SÍ! 💖', etiquetas: ['tada'] };
     case 'celebracion_elegida':
       return {
         titulo: 'Noviazgo',
-        mensaje: `${para} eligió celebrar en: ${etiquetaCelebracion ?? 'una opción'}`,
+        mensaje: para
+          ? `${para} eligió celebrar en: ${etiquetaCelebracion ?? 'una opción'}`
+          : 'Ya eligió dónde celebrar 🎉 Míralo en tu enlace privado.',
         etiquetas: ['partying_face'],
       };
     default:

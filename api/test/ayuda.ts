@@ -1,19 +1,21 @@
-// Utilidades de prueba: peticiones al Worker, propuestas válidas e imágenes mínimas.
+// Utilidades de prueba: peticiones al Worker, propuestas válidas (v2 cifradas y v1 heredadas) e imágenes mínimas.
+import { env } from 'cloudflare:test';
 import { exports } from 'cloudflare:workers';
+import { sha256Hex } from '../src/ids';
 
 // `wrangler types` no tipa el export por defecto; es el fetch del Worker principal.
 const worker = (exports as unknown as { default: Fetcher }).default;
 
-export const BASE = 'http://api.test/api/v1';
+export const BASE = 'https://api.test/api/v1';
 
 let contadorIp = 0;
 /** IP distinta por llamada para que los límites de tasa de un test no afecten a otro. */
 export const nuevaIp = () => `10.0.${Math.floor(++contadorIp / 250)}.${contadorIp % 250}`;
 
-export function pedir(ruta: string, init: RequestInit & { ip?: string } = {}): Promise<Response> {
+export function pedir(ruta: string, init: RequestInit & { ip?: string; base?: string } = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (!headers.has('CF-Connecting-IP')) headers.set('CF-Connecting-IP', init.ip ?? nuevaIp());
-  return worker.fetch(new Request(BASE + ruta, { ...init, headers }));
+  return worker.fetch(new Request((init.base ?? BASE) + ruta, { ...init, headers, redirect: 'manual' }));
 }
 
 export const json = (cuerpo: unknown, extra: RequestInit & { ip?: string } = {}) => ({
@@ -23,7 +25,16 @@ export const json = (cuerpo: unknown, extra: RequestInit & { ip?: string } = {})
   body: typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo),
 });
 
+/** Texto cifrado de mentira: al servidor solo le importa su forma (base64url) y su tamaño. */
+export const CIFRADO = (largo = 200) => 'AbC_-'.repeat(Math.ceil(largo / 5)).slice(0, largo);
+
+/** Sobre de una propuesta v2 (el contenido real va cifrado en el navegador). */
 export function propuestaValida(cambios: Record<string, unknown> = {}) {
+  return { v: 2, cifrado: CIFRADO(), fotos: [], avisos: { push: false }, ...cambios };
+}
+
+/** Contenido en claro de una propuesta v1 (anterior al cifrado). */
+export function datosV1(cambios: Record<string, unknown> = {}) {
   return {
     v: 1,
     plantilla: 'romantica',
@@ -43,9 +54,21 @@ export function propuestaValida(cambios: Record<string, unknown> = {}) {
       ],
     },
     mensajeFinal: '¡Sabía que dirías que sí!',
-    avisos: { push: false },
     ...cambios,
   };
+}
+
+/** Inserta directo en D1 una propuesta v1, como las que existían antes del cifrado. */
+export async function crearPropuestaV1(cambios: Record<string, unknown> = {}, ntfyTema: string | null = null) {
+  const id = `V1${String(++contadorIp).padStart(10, '0')}`;
+  const claveAdmin = 'C'.repeat(32);
+  const ahora = Date.now();
+  await env.DB.prepare(
+    'INSERT INTO propuestas (id, clave_hash, datos, ntfy_tema, usuario_id, creada_en, expira_en) VALUES (?, ?, ?, ?, NULL, ?, ?)',
+  )
+    .bind(id, await sha256Hex(claveAdmin), JSON.stringify(datosV1(cambios)), ntfyTema, ahora, ahora + 30 * 86_400_000)
+    .run();
+  return { id, claveAdmin };
 }
 
 export interface Creada {
@@ -71,7 +94,15 @@ export const WEBP = () => {
 };
 export const PNG = () => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]);
 
-export async function subirFoto(bytes: Uint8Array = WEBP(), tipo = 'image/webp') {
+/** Foto cifrada de mentira: byte de versión 1 + IV + datos + etiqueta (ver js/cifrado.js). */
+export const CIFRADA = (largo = 64) => {
+  const b = new Uint8Array(largo);
+  for (let i = 0; i < largo; i++) b[i] = (i * 37 + 11) % 256;
+  b[0] = 1;
+  return b;
+};
+
+export async function subirFoto(bytes: Uint8Array = CIFRADA(), tipo = 'application/octet-stream') {
   return pedir('/fotos', { method: 'POST', headers: { 'Content-Type': tipo }, body: bytes });
 }
 

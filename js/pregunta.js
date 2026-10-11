@@ -1,7 +1,7 @@
 // Máquina de estados de pregunta.html (contrato §2.2):
 // cargando → paso[0..n] → pregunta → (celebracion) → final, con error + Reintentar.
 
-import { obtenerPropuesta, MODO } from './api.js';
+import { cargarFoto, obtenerPropuesta, MODO } from './api.js';
 import { API_BASE } from './config.js';
 import { activarBotonNo } from './boton-no.js';
 import { crearEmisor } from './eventos.js';
@@ -9,7 +9,7 @@ import { LIMITES } from './limites.js';
 import { lanzarParticulas } from './particulas.js';
 import { cargarPlantilla, obtenerPlantilla } from './plantillas.js';
 import {
-  anunciar, crear, escribirAlmacen, largo, leerAlmacen, limpiarTexto, mostrarAvisoDemo, vaciar,
+  anunciar, crear, escribirAlmacen, largo, leerAlmacen, leerFragmento, limpiarTexto, mostrarAvisoDemo, vaciar,
 } from './utilidades.js';
 import { urlFotoValida } from './validacion.js';
 
@@ -17,10 +17,14 @@ const $ = (id) => document.getElementById(id);
 const parametros = new URLSearchParams(location.search);
 const idPropuesta = parametros.get('id') ?? '';
 const vistaPrevia = parametros.get('preview') === '1';
+// Llave de cifrado del fragmento #c=: nunca se envía al servidor.
+const claveCifrado = leerFragmento('c');
 const claveRespondida = `noviazgo:respondida:${idPropuesta}`;
 
 const estado = {
   propuesta: null,
+  claveFotos: null, // llave para descifrar las fotos (null en propuestas v1, sin cifrar)
+  fotos: new Map(), // url → Promise<URL blob:> ya descifrada
   plantilla: obtenerPlantilla(),
   emisor: null,
   paso: 0,
@@ -42,16 +46,19 @@ function mostrarPantalla(nombre, anuncio) {
 }
 
 function mostrarError(error) {
+  const llave = error?.codigo === 'llave_faltante' || error?.codigo === 'llave_invalida';
   const noExiste = !idPropuesta && !vistaPrevia
     || error?.codigo === 'no_encontrado' || error?.codigo === 'expirada'
     || error?.estado === 404 || error?.estado === 410;
-  $('titulo-error').textContent = noExiste
-    ? 'Este enlace no existe o ya expiró'
-    : 'No pudimos cargar tu sorpresa';
-  $('mensaje-error').textContent = noExiste
-    ? 'Pídele a quien te lo envió que te comparta uno nuevo.'
-    : 'Inténtalo en un momento. Revisa tu conexión a internet.';
-  $('boton-reintentar').hidden = noExiste;
+  $('titulo-error').textContent = llave
+    ? 'Este enlace está incompleto'
+    : noExiste ? 'Este enlace no existe o ya expiró' : 'No pudimos cargar tu sorpresa';
+  $('mensaje-error').textContent = llave
+    ? 'Tu sorpresa está protegida y el enlace llegó cortado. Pídele a quien te lo envió que te lo comparta completo.'
+    : noExiste
+      ? 'Pídele a quien te lo envió que te comparta uno nuevo.'
+      : 'Inténtalo en un momento. Revisa tu conexión a internet.';
+  $('boton-reintentar').hidden = noExiste || llave;
   mostrarPantalla('error');
 }
 
@@ -102,7 +109,18 @@ async function obtenerDatos() {
     return guardada;
   }
   if (!idPropuesta) throw Object.assign(new Error('sin id'), { codigo: 'no_encontrado' });
-  return obtenerPropuesta(idPropuesta);
+  return obtenerPropuesta(idPropuesta, claveCifrado);
+}
+
+/** Descarga y descifra una foto una sola vez; las siguientes veces reutiliza la URL blob:. */
+function urlDeFoto(url) {
+  let promesa = estado.fotos.get(url);
+  if (!promesa) {
+    promesa = cargarFoto(url, estado.claveFotos);
+    promesa.catch(() => estado.fotos.delete(url)); // si falló, se puede reintentar más tarde
+    estado.fotos.set(url, promesa);
+  }
+  return promesa;
 }
 
 const leerRespondida = () => (vistaPrevia ? null : leerAlmacen(localStorage, claveRespondida, null));
@@ -121,23 +139,21 @@ function pintarFotos(contenedor, fotos) {
       },
     });
     const figura = crear('figure', { clase: 'foto', hijos: [img] });
-    img.addEventListener('error', () => {
+    const quitar = () => {
       figura.remove();
       contenedor.dataset.cantidad = String(contenedor.children.length);
       if (!contenedor.children.length) contenedor.hidden = true;
-    }, { once: true });
-    img.src = foto.url;
+    };
+    img.addEventListener('error', quitar, { once: true });
     contenedor.append(figura);
+    // Si la foto no se puede descargar o descifrar, el paso se muestra solo con el texto.
+    urlDeFoto(foto.url).then((url) => { img.src = url; }, quitar);
   }
 }
 
 function precargar(indice) {
   const paso = estado.propuesta.pasos[indice];
-  for (const foto of paso?.fotos ?? []) {
-    const img = new Image();
-    img.decoding = 'async';
-    img.src = foto.url;
-  }
+  for (const foto of paso?.fotos ?? []) urlDeFoto(foto.url).catch(() => {});
 }
 
 function mostrarPaso(indice) {
@@ -261,6 +277,8 @@ async function iniciar() {
   try {
     datos = await obtenerDatos();
     estado.propuesta = normalizar(datos);
+    // v1 (sin cifrar) → null. Vista previa → la llave que dejó el generador.
+    estado.claveFotos = datos.cifrada === false ? null : vistaPrevia ? datos.clave : claveCifrado;
   } catch (error) {
     mostrarError(error);
     return;
@@ -273,7 +291,7 @@ async function iniciar() {
   $('saludo-paso').textContent = estado.propuesta.para ? `Para ${estado.propuesta.para}` : 'Para ti';
 
   if (!estado.emisor) {
-    estado.emisor = crearEmisor(idPropuesta, { vistaPrevia });
+    estado.emisor = crearEmisor(idPropuesta, { vistaPrevia, clave: datos.cifrada ? claveCifrado : null });
     estado.emisor.abierto();
   }
 

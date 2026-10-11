@@ -22,8 +22,9 @@ const nuevaClave = () => `k${siguienteClave++}`;
  * @param {HTMLOListElement} lista
  * @param {HTMLButtonElement} botonAgregar
  * @param {HTMLElement} regionAnuncio
+ * @param {string} claveCifrado llave de la propuesta: cada foto se cifra con ella antes de subir
  */
-export function crearEditorPasos(lista, botonAgregar, regionAnuncio) {
+export function crearEditorPasos(lista, botonAgregar, regionAnuncio, claveCifrado) {
   /** @type {{clave: string, texto: string, fotos: any[]}[]} */
   const pasos = [{ clave: nuevaClave(), texto: TEXTOS_SUGERIDOS[0], fotos: [] }];
 
@@ -96,6 +97,7 @@ export function crearEditorPasos(lista, botonAgregar, regionAnuncio) {
       foto.progreso = 0.1;
       actualizarFoto(paso, foto);
       const resultado = await subirFoto(blob, {
+        clave: claveCifrado,
         alProgresar(p) {
           foto.progreso = p;
           const barra = lista.querySelector(`[data-foto="${foto.clave}"] progress`);

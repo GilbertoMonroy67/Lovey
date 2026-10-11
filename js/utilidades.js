@@ -143,23 +143,31 @@ export function anunciar(region, mensaje) {
 
 const CLAVE_MIS_PROPUESTAS = 'noviazgo:mis-propuestas';
 
-/** Enlace para la pareja. Relativo a la página actual: funciona bajo /<repo>/ en GitHub Pages. */
-export function enlacePregunta(id) {
+/**
+ * Enlace para la pareja. Relativo a la página actual: funciona bajo /<repo>/ en GitHub Pages.
+ * La llave de cifrado va en el fragmento (#c=): el navegador nunca la manda al servidor.
+ */
+export function enlacePregunta(id, claveCifrado) {
   const url = new URL('pregunta.html', location.href);
   url.search = '';
-  url.hash = '';
+  url.hash = claveCifrado ? `c=${encodeURIComponent(claveCifrado)}` : '';
   url.searchParams.set('id', id);
   return url.href;
 }
 
-/** Enlace privado de seguimiento: la clave va en el fragmento (#k=), nunca en la query. */
-export function enlaceRespuestas(id, claveAdmin) {
+/** Enlace privado de seguimiento: la clave de administración (#k=) y la de cifrado (&c=) van en el fragmento. */
+export function enlaceRespuestas(id, claveAdmin, claveCifrado) {
   const url = new URL('respuestas.html', location.href);
   url.search = '';
   url.searchParams.set('id', id);
-  url.hash = `k=${encodeURIComponent(claveAdmin)}`;
+  const fragmento = new URLSearchParams({ k: claveAdmin });
+  if (claveCifrado) fragmento.set('c', claveCifrado);
+  url.hash = fragmento.toString();
   return url.href;
 }
+
+/** Lee un valor del fragmento (#k=…&c=…) sin que llegue nunca al servidor. */
+export const leerFragmento = (nombre) => new URLSearchParams(location.hash.slice(1)).get(nombre) ?? '';
 
 export function leerMisPropuestas() {
   const lista = leerAlmacen(localStorage, CLAVE_MIS_PROPUESTAS, []);
