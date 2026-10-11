@@ -198,7 +198,7 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 - [ ] Prueba manual en navegadores reales: botón "No" en táctil (iPhone y Android), teclado, `prefers-reduced-motion` y compresión de fotos HEIC/EXIF (usuario/frontend)
 - [x] CSP por `<meta>` en las tres páginas (2026-10-11)
 - [x] Primera auditoría de `cyberbot` con los 20 controles y `docs/seguridad.md` (2026-10-11)
-- [ ] **Deploy v2:** `npx wrangler login` (la sesión actual da 7403), `cd api && npx wrangler deploy` y `git push` **juntos** (el frontend v2 no funciona con el Worker v1 ni al revés). Después, las comprobaciones de `docs/seguridad.md`
+- [x] Deploy v2 del Worker y del frontend, verificado en producción (2026-10-11)
 - [ ] Configurar Turnstile (opcional; `docs/arquitectura.md` §9, paso 9b)
 - [ ] 2026-11-10: quitar el soporte de lectura de propuestas v1
 - [ ] Activar GitHub Pages y probar en móvil real (lista de `docs/arquitectura.md` §10)
@@ -286,4 +286,9 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
   - Recorridos de `index.html`, `pregunta.html` (normal, sin llave, llave cortada y v1 heredada) y `respuestas.html` (con y sin llave), sin errores.
   - El GET crudo, el panel crudo y R2 no contienen texto ni imágenes en claro.
 - No se pudo consultar D1 de producción: la sesión de wrangler responde 7403 y hay que hacer `npx wrangler login`.
-- **Nada desplegado todavía:** el Worker v2 y el frontend deben publicarse juntos.
+- La sesión de wrangler volvió a funcionar sin hacer `login`: el 7403 fue temporal.
+- Deploy v2 (Worker `49f15a52…` + push a Pages) y verificación en producción:
+  - Por `http://`: 301 en GET y 403 en POST. Cabeceras HSTS, CSP, XFO y CORP presentes.
+  - CORS con `X-Turnstile-Token` y origen ajeno bloqueado. `SAL_IP` presente y `api/.dev.vars` responde 404.
+  - Prueba real: la fila de D1 y el objeto de R2 están cifrados, se descifran con la llave del enlace y se borraron después.
+  - Las 3 propuestas v1 existentes siguen respondiendo 200.

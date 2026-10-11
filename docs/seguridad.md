@@ -59,7 +59,11 @@ Verificación: 93 tests del Worker y `tsc` limpio. Integración con los módulos
 ## Pendientes de seguridad
 
 - [ ] Configurar Turnstile (manual, `arquitectura.md` §9, paso 9b).
-- [ ] Desplegar el Worker v2 y el frontend **juntos**. El frontend v2 no funciona con el Worker v1 (rechaza el sobre) ni al revés. Antes, `npx wrangler login`: la sesión de wrangler actual responde 7403.
-- [ ] Después del deploy: `curl -I http://…workers.dev/api/v1/salud` debe dar 301 y una propuesta creada desde Pages no debe tener texto legible en D1 (`wrangler d1 execute noviazgo --remote --command "SELECT datos FROM propuestas LIMIT 1"`).
+- [x] Deploy v2 del Worker y del frontend (2026-10-11).
+- [x] Verificado en producción:
+  - HTTP da 301 (GET) y 403 (POST), con las cabeceras nuevas presentes.
+  - CORS correcto.
+  - Propuesta de prueba: D1 y R2 cifrados, se descifra con el enlace y se borró.
+  - Las 3 propuestas v1 siguen abriéndose.
 - [ ] Prueba manual en navegadores reales (Chrome, Firefox, Safari, iOS y Android): consola sin errores de CSP, fotos descifradas y Turnstile si está activo.
 - [ ] 2026-11-10: quitar el soporte de lectura de propuestas v1.
