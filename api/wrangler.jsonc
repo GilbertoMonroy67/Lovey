@@ -3,7 +3,10 @@
   "name": "noviazgo-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
-  "observability": { "enabled": true },
+  // Solo los console.* propios: los logs de invocación guardarían la IP y la cabecera Authorization (claveAdmin).
+  "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
+  // Sin URLs de vista previa: las versiones antiguas no deben poder ejecutarse con los bindings actuales.
+  "preview_urls": false,
 
   // Limpieza diaria de propuestas expiradas, fotos huérfanas y contadores viejos (docs/arquitectura.md §5.6).
   "triggers": { "crons": ["0 4 * * *"] },

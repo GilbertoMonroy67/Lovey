@@ -173,6 +173,7 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 | 2026-10-11 | Endurecimiento: Zod `.strict()`, HTTPS obligatorio (301/403) + HSTS, CSP/XFO/CORP en la API, CSP `<meta>` y `no-referrer` en las tres páginas, cuerpo JSON ≤ 32 KB | Controles 8, 14–19 de la auditoría de `cyberbot` |
 | 2026-10-11 | Turnstile opcional en `POST /propuestas` (desactivado hasta configurar `TURNSTILE_SITIO` + `TURNSTILE_SECRETO`) | Protección contra bots gratuita, sin muro para quien recibe |
 | 2026-10-11 | Crear el agente `cyberbot` (ciberseguridad), auditor sin propiedad de código: solo escribe `docs/seguridad.md` | Revisar la seguridad antes de cada deploy sin mezclarla con el trabajo de `frontend` y `backend` |
+| 2026-10-11 | Worker sin logs de invocación (`invocation_logs: false`) y sin URLs de vista previa (`preview_urls: false`) | Auditoría de la cuenta de Cloudflare: los logs guardaban la IP y la cabecera `Authorization`; las versiones viejas podían ejecutarse por URL de vista previa |
 | 2026-10-09 | `.gitignore` endurecido (`.env*`, `.dev.vars*`, `*.pem`, `*.key`, `.wrangler/`, `.claude/settings.local.json`…) | Requisito del usuario: nunca subir llaves ni credenciales |
 
 ## Pendientes / Próximos pasos
@@ -200,6 +201,7 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 - [x] Primera auditoría de `cyberbot` con los 20 controles y `docs/seguridad.md` (2026-10-11)
 - [x] Deploy v2 del Worker y del frontend, verificado en producción (2026-10-11)
 - [x] Turnstile activo: site key pública en `js/config.js` y `TURNSTILE_SECRETO` solo en el Worker; verificado con 403 sin token (2026-10-11)
+- [ ] Activar 2FA en la cuenta de Cloudflare y revisar los tokens de API (usuario)
 - [ ] 2026-11-10: quitar el soporte de lectura de propuestas v1
 - [ ] Activar GitHub Pages y probar en móvil real (lista de `docs/arquitectura.md` §10)
 - [ ] (Futuro) Login con Google opcional para quien envía (historial en varios dispositivos) (backend). Requiere antes servir el frontend y la API desde el mismo sitio (Workers Assets o un dominio propio), porque las cookies de `workers.dev` no funcionan desde `github.io`.
@@ -292,3 +294,7 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
   - CORS con `X-Turnstile-Token` y origen ajeno bloqueado. `SAL_IP` presente y `api/.dev.vars` responde 404.
   - Prueba real: la fila de D1 y el objeto de R2 están cifrados, se descifran con la llave del enlace y se borraron después.
   - Las 3 propuestas v1 existentes siguen respondiendo 200.
+- Auditoría de la cuenta de Cloudflare con el plugin MCP (solo lectura):
+  - Bien: R2 privado (sin `r2.dev`, sin CORS), secretos como `secret_text`, Turnstile limitado a Pages, sin zonas ni recursos extra.
+  - Hallazgos: cuenta sin 2FA (pendiente del usuario), logs de invocación con IP y `Authorization`, URLs de vista previa activas. Los dos últimos se corrigieron en `api/wrangler.jsonc` y se desplegaron (versión `30b86279…`), verificado por la API.
+  - No se pudieron listar los tokens de API (el conector no tiene permiso): revisarlos a mano.
