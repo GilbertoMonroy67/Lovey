@@ -24,8 +24,8 @@ export const MODO = (() => {
 
 export const SONDEO_MS = 5000;
 
-// Protección contra bots con Cloudflare Turnstile al crear propuestas (contrato §5.8).
-// Vacío = desactivado. Para activarlo: crea un widget en el panel de Cloudflare (Turnstile) para
-// gilbertomonroy67.github.io, pega aquí su "site key" (es pública) y guarda la "secret key" con
-// `npx wrangler secret put TURNSTILE_SECRETO` en api/. Solo se usa en modo 'api'.
-export const TURNSTILE_SITIO = '';
+// Protección contra bots con Cloudflare Turnstile al crear propuestas (contrato §13.3).
+// La "site key" es PÚBLICA por diseño (el navegador la necesita y solo funciona en el hostname
+// registrado, gilbertomonroy67.github.io). La "secret key" NUNCA va en el repo: vive solo en el
+// Worker (`npx wrangler secret put TURNSTILE_SECRETO`). Vacío = desactivado. Solo se usa en modo 'api'.
+export const TURNSTILE_SITIO = '0x4AAAAAAFUJ_kJNXNOvPkKl';

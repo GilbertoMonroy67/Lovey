@@ -58,7 +58,8 @@ Verificación: 93 tests del Worker y `tsc` limpio. Integración con los módulos
 
 ## Pendientes de seguridad
 
-- [ ] Configurar Turnstile (manual, `arquitectura.md` §9, paso 9b).
+- [x] Widget de Turnstile creado; site key (pública) en `js/config.js` (2026-10-11).
+- [ ] Guardar la secret key con `npx wrangler secret put TURNSTILE_SECRETO` **después** de comprobar que el recuadro aparece en Pages. Nunca en el repo ni en el chat.
 - [x] Deploy v2 del Worker y del frontend (2026-10-11).
 - [x] Verificado en producción:
   - HTTP da 301 (GET) y 403 (POST), con las cabeceras nuevas presentes.
