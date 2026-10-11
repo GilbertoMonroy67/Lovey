@@ -31,7 +31,7 @@ Verificación: 93 tests del Worker y `tsc` limpio. Integración con los módulos
 | 9 | Proteger las cookies de sesión | ➖ No aplica | La app no usa cookies ni sesiones (CORS sin credenciales y `credentials: 'omit'` en `fetch`). Se retomará con el login de Google, que exige `HttpOnly; Secure; SameSite`. |
 | 10 | Hashear contraseñas | ✅ Ya cumplía (no hay contraseñas) | La única credencial es la `claveAdmin` (32 caracteres base62 ≈ 190 bits), guardada como SHA-256. Con esa entropía no hace falta un hash lento (bcrypt/argon2), que solo es necesario para contraseñas humanas débiles. |
 | 11 | Rate limiting | ✅ Ya cumplía | Por hash de IP con sal: fotos 30/h, propuestas 10/h, eventos 60/min, panel 30/min, lectura 120/min. Topes globales diarios: 500 fotos y 300 propuestas. Pendiente B6 (binding `ratelimits`) solo por costo, no por seguridad. |
-| 12 | Protección contra bots | ✅ **Implementado (desactivado hasta configurarlo)** | Cloudflare Turnstile en `POST /propuestas`, en modo *Managed* y gratuito. Falla cerrado si siteverify no responde. Se activa con `TURNSTILE_SITIO` + `TURNSTILE_SECRETO` (`arquitectura.md` §9, paso 9b). |
+| 12 | Protección contra bots | ✅ **Implementado y activo (2026-10-11)** | Cloudflare Turnstile en `POST /propuestas`, en modo *Managed* y gratuito. Falla cerrado si siteverify no responde. Se activa con `TURNSTILE_SITIO` + `TURNSTILE_SECRETO` (`arquitectura.md` §9, paso 9b). |
 | 13 | Parametrizar queries | ✅ Ya cumplía | Todo el SQL usa `prepare().bind()`. Las listas `IN (...)` generan solo marcadores `?n`, nunca concatenan valores. |
 | 14 | Validar inputs | ✅ Reforzado | Servidor: Zod `.strict()` sobre el sobre, ids por regex, tamaños, base64url y bytes. Navegador: §3.3 completo antes de cifrar (el servidor ya no puede leer los textos). |
 | 15 | Sanitizar contenido | ✅ Reforzado | Nunca `innerHTML`/`eval`; todo con `textContent`. Al descifrar, `pregunta.js` vuelve a normalizar y truncar. CSP nueva sin scripts en línea. Las fotos se muestran solo como `blob:` de JPEG/WebP detectados por bytes mágicos. |
@@ -53,13 +53,12 @@ Verificación: 93 tests del Worker y `tsc` limpio. Integración con los módulos
 | `localStorage` guarda `claveAdmin` y `claveCifrado` en "Mis propuestas" | Comodidad en la PC de quien envía. Un XSS podría leerlas, pero la CSP y `textContent` lo mitigan. Riesgo en equipos compartidos. | — |
 | `sharp`/`undici` en `miniflare` (5 avisos altos, solo desarrollo) | Solo corren en la máquina local con `wrangler dev`/`vitest`. `npm audit fix --force` bajaría versiones y rompería el entorno. | En cada actualización de `wrangler` |
 | CSP con `localhost:8787` en `connect-src` | Necesario para desarrollar en modo api. Solo permite que **nuestros** scripts se conecten a un puerto local. | — |
-| Turnstile desactivado hasta configurarlo | Requiere crear el widget en el panel de Cloudflare (paso manual). Mientras tanto aplican los límites de tasa y los topes globales. | Al ver abuso en los topes globales |
 | Propuestas v1 (sin cifrar) en D1 hasta su expiración | Compatibilidad con enlaces ya enviados. Expiran solas a los 30 días. | 2026-11-10: se puede borrar el soporte v1 |
 
 ## Pendientes de seguridad
 
 - [x] Widget de Turnstile creado; site key (pública) en `js/config.js` (2026-10-11).
-- [ ] Guardar la secret key con `npx wrangler secret put TURNSTILE_SECRETO` **después** de comprobar que el recuadro aparece en Pages. Nunca en el repo ni en el chat.
+- [x] Secret key guardada solo en el Worker (`TURNSTILE_SECRETO`), sin pasar por el repo ni por el chat. Verificado en producción: sin token o con un token falso → 403 `verificacion_bot`.
 - [x] Deploy v2 del Worker y del frontend (2026-10-11).
 - [x] Verificado en producción:
   - HTTP da 301 (GET) y 403 (POST), con las cabeceras nuevas presentes.

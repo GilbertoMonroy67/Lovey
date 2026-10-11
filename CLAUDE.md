@@ -199,7 +199,7 @@ Para usar el frontend local contra `wrangler dev`, ejecuta en la consola del nav
 - [x] CSP por `<meta>` en las tres páginas (2026-10-11)
 - [x] Primera auditoría de `cyberbot` con los 20 controles y `docs/seguridad.md` (2026-10-11)
 - [x] Deploy v2 del Worker y del frontend, verificado en producción (2026-10-11)
-- [ ] Configurar Turnstile (opcional; `docs/arquitectura.md` §9, paso 9b)
+- [x] Turnstile activo: site key pública en `js/config.js` y `TURNSTILE_SECRETO` solo en el Worker; verificado con 403 sin token (2026-10-11)
 - [ ] 2026-11-10: quitar el soporte de lectura de propuestas v1
 - [ ] Activar GitHub Pages y probar en móvil real (lista de `docs/arquitectura.md` §10)
 - [ ] (Futuro) Login con Google opcional para quien envía (historial en varios dispositivos) (backend). Requiere antes servir el frontend y la API desde el mismo sitio (Workers Assets o un dominio propio), porque las cookies de `workers.dev` no funcionan desde `github.io`.
