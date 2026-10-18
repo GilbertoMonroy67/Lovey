@@ -1,7 +1,8 @@
 // Utilidades de prueba: peticiones al Worker, propuestas válidas (v2 cifradas y v1 heredadas) e imágenes mínimas.
-import { env } from 'cloudflare:test';
+import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import { exports } from 'cloudflare:workers';
 import { sha256Hex } from '../src/ids';
+import { app } from '../src/index';
 
 // `wrangler types` no tipa el export por defecto; es el fetch del Worker principal.
 const worker = (exports as unknown as { default: Fetcher }).default;
@@ -16,6 +17,23 @@ export function pedir(ruta: string, init: RequestInit & { ip?: string; base?: st
   const headers = new Headers(init.headers);
   if (!headers.has('CF-Connecting-IP')) headers.set('CF-Connecting-IP', init.ip ?? nuevaIp());
   return worker.fetch(new Request((init.base ?? BASE) + ruta, { ...init, headers, redirect: 'manual' }));
+}
+
+/**
+ * Igual que `pedir`, pero con variables de entorno extra (p. ej. TURNSTILE_SECRETO o PERMITIR_LOCALHOST)
+ * sin tocar la configuración compartida de los tests. Llama a la app Hono directamente.
+ */
+export async function pedirCon(
+  extra: Record<string, string>,
+  ruta: string,
+  init: RequestInit & { ip?: string; base?: string } = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (!headers.has('CF-Connecting-IP')) headers.set('CF-Connecting-IP', init.ip ?? nuevaIp());
+  const ctx = createExecutionContext();
+  const r = await app.fetch(new Request((init.base ?? BASE) + ruta, { ...init, headers, redirect: 'manual' }), { ...env, ...extra }, ctx);
+  await waitOnExecutionContext(ctx);
+  return r;
 }
 
 export const json = (cuerpo: unknown, extra: RequestInit & { ip?: string } = {}) => ({
@@ -102,8 +120,27 @@ export const CIFRADA = (largo = 64) => {
   return b;
 };
 
-export async function subirFoto(bytes: Uint8Array = CIFRADA(), tipo = 'application/octet-stream') {
-  return pedir('/fotos', { method: 'POST', headers: { 'Content-Type': tipo }, body: bytes });
+/** Pide un boleto de subida (contrato v2.2, §15.1) sin Turnstile y devuelve el texto del boleto. */
+export async function obtenerBoleto(ip?: string): Promise<string> {
+  const r = await pedir('/boletos', { method: 'POST', ip });
+  if (r.status !== 201) throw new Error(`obtenerBoleto: ${r.status} ${await r.text()}`);
+  return ((await r.json()) as { boleto: string }).boleto;
+}
+
+/**
+ * Sube una foto con su boleto (`X-Boleto`). Sin `boleto`, pide uno nuevo desde la misma IP; sin `ip`,
+ * usa una IP nueva (cada IP solo puede subir 3 fotos al día).
+ */
+export async function subirFoto(
+  bytes: Uint8Array = CIFRADA(),
+  tipo = 'application/octet-stream',
+  opciones: { boleto?: string | null; ip?: string } = {},
+) {
+  const ip = opciones.ip ?? nuevaIp();
+  const boleto = opciones.boleto === undefined ? await obtenerBoleto(ip) : opciones.boleto;
+  const headers: Record<string, string> = { 'Content-Type': tipo };
+  if (boleto !== null) headers['X-Boleto'] = boleto;
+  return pedir('/fotos', { method: 'POST', headers, body: bytes, ip });
 }
 
 export const sesion = () => 'Qw8e7r6t5y4u3i2o';

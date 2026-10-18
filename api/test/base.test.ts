@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LIMITES } from '../../js/limites.js';
 import { origenPermitido } from '../src/cors';
 import { base62, igualesTiempoConstante, sha256Hex } from '../src/ids';
-import { pedir } from './ayuda';
+import { pedir, pedirCon } from './ayuda';
 
 describe('GET /salud y cabeceras', () => {
   it('responde ok con cabeceras de seguridad', async () => {
@@ -61,9 +61,28 @@ describe('CORS', () => {
     expect(r.headers.get('Access-Control-Allow-Credentials')).toBeNull();
   });
 
-  it('localhost con cualquier puerto se acepta', async () => {
-    const r = await pedir('/salud', { headers: { Origin: 'http://localhost:8000' } });
+  it('sin PERMITIR_LOCALHOST (producción) localhost y 127.0.0.1 se rechazan', async () => {
+    for (const origen of ['http://localhost:8000', 'http://127.0.0.1:5500', 'http://localhost']) {
+      const r = await pedir('/salud', { headers: { Origin: origen } });
+      expect(r.headers.get('Access-Control-Allow-Origin')).toBeNull();
+      const pre = await pedir('/fotos', { method: 'OPTIONS', headers: { Origin: origen, 'Access-Control-Request-Method': 'POST' } });
+      expect(pre.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    }
+    // Un valor distinto de "1" no lo habilita.
+    const r = await pedirCon({ PERMITIR_LOCALHOST: 'true' }, '/salud', { headers: { Origin: 'http://localhost:8000' } });
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('con PERMITIR_LOCALHOST="1" (desarrollo) localhost con cualquier puerto se acepta', async () => {
+    const r = await pedirCon({ PERMITIR_LOCALHOST: '1' }, '/salud', { headers: { Origin: 'http://localhost:8000' } });
     expect(r.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:8000');
+  });
+
+  it('el origen de Pages funciona con y sin PERMITIR_LOCALHOST', async () => {
+    for (const extra of [{}, { PERMITIR_LOCALHOST: '1' }] as Record<string, string>[]) {
+      const r = await pedirCon(extra, '/salud', { headers: { Origin: 'https://ejemplo.github.io' } });
+      expect(r.headers.get('Access-Control-Allow-Origin')).toBe('https://ejemplo.github.io');
+    }
   });
 
   it('origen no permitido no recibe cabeceras CORS', async () => {
@@ -73,14 +92,14 @@ describe('CORS', () => {
   });
 
   it('preflight permitido → 204 con métodos, cabeceras y max-age', async () => {
-    const r = await pedir('/fotos', {
+    const r = await pedirCon({ PERMITIR_LOCALHOST: '1' }, '/fotos', {
       method: 'OPTIONS',
       headers: { Origin: 'http://127.0.0.1:5500', 'Access-Control-Request-Method': 'POST' },
     });
     expect(r.status).toBe(204);
     expect(r.headers.get('Access-Control-Allow-Origin')).toBe('http://127.0.0.1:5500');
     expect(r.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, DELETE, OPTIONS');
-    expect(r.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type, Authorization, X-Turnstile-Token');
+    expect(r.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type, Authorization, X-Turnstile-Token, X-Boleto');
     expect(r.headers.get('Access-Control-Max-Age')).toBe('86400');
   });
 
@@ -92,7 +111,10 @@ describe('CORS', () => {
 
   it('origenPermitido no acepta subcadenas ni http en otros hosts', () => {
     expect(origenPermitido('https://ejemplo.github.io.malo.com', 'https://ejemplo.github.io')).toBe(false);
-    expect(origenPermitido('http://localhost.malo.com', '')).toBe(false);
+    expect(origenPermitido('http://localhost.malo.com', '', true)).toBe(false);
+    expect(origenPermitido('http://localhost:8000', '')).toBe(false);
+    expect(origenPermitido('http://localhost:8000', '', true)).toBe(true);
+    expect(origenPermitido('https://localhost:8000', '', true)).toBe(false);
     expect(origenPermitido(undefined, 'https://ejemplo.github.io')).toBe(false);
   });
 });

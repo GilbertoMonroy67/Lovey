@@ -1,8 +1,11 @@
 // Editor de pasos del generador: de 1 a 5 pasos, cada uno con texto y de 0 a 3 fotos.
 // Se reordena con botones (sin arrastrar, por accesibilidad). Las fotos se comprimen
 // y se suben en cuanto se eligen, con barra de progreso.
+// v2.2 (contrato §15): como máximo 3 fotos en toda la propuesta, y cada subida usa el boleto de
+// js/boleto.js (que se pide en paralelo con la compresión de la primera foto).
 
 import { subirFoto } from './api.js';
+import { conBoleto, prepararBoleto } from './boleto.js';
 import { comprimirFoto } from './fotos.js';
 import { LIMITES } from './limites.js';
 import { anunciar, crear, largo, limpiarTexto, vaciar } from './utilidades.js';
@@ -28,7 +31,45 @@ export function crearEditorPasos(lista, botonAgregar, regionAnuncio, claveCifrad
   /** @type {{clave: string, texto: string, fotos: any[]}[]} */
   const pasos = [{ clave: nuevaClave(), texto: TEXTOS_SUGERIDOS[0], fotos: [] }];
 
+  // Cuenta las fotos en proceso, subiendo y listas; no las que fallaron.
   const fotosTotales = () => pasos.reduce((n, p) => n + p.fotos.filter((f) => f.estado !== 'error').length, 0);
+  const MAX_FOTOS = LIMITES.fotosTotales.max;
+  const MENSAJE_MAXIMO = `Llegaste al máximo de ${MAX_FOTOS} fotos por propuesta.`;
+  const MENSAJE_CUPO_DIARIO = `Ya subiste ${MAX_FOTOS} fotos hoy desde esta conexión. `
+    + 'Puedes crear la propuesta con las que tienes o intentarlo mañana.';
+
+  // Resumen global de fotos, encima de la lista de pasos.
+  const contadorFotos = crear('p', { clase: 'contador-fotos', atributos: { 'aria-live': 'polite' } });
+  const avisoFotos = crear('p', { clase: 'aviso-fotos', atributos: { hidden: true } });
+  lista.before(crear('div', {
+    clase: 'resumen-fotos',
+    hijos: [
+      crear('p', {
+        clase: 'ayuda',
+        texto: `Hasta ${MAX_FOTOS} fotos en toda la propuesta. Cada foto que subes cuenta para el límite de `
+          + `${MAX_FOTOS} al día desde tu conexión, aunque después la quites.`,
+      }),
+      contadorFotos,
+      avisoFotos,
+    ],
+  }));
+  let mensajeExceso = ''; // "Solo se agregaron n foto(s)…", hasta el siguiente cambio de fotos
+  let estabaLleno = false;
+
+  function actualizarResumenFotos() {
+    const total = fotosTotales();
+    const texto = `Fotos: ${total} de ${MAX_FOTOS}`;
+    if (contadorFotos.textContent !== texto) contadorFotos.textContent = texto;
+    const lleno = total >= MAX_FOTOS;
+    contadorFotos.classList.toggle('lleno', lleno);
+    const aviso = [mensajeExceso, lleno && !mensajeExceso.includes(MENSAJE_MAXIMO) ? MENSAJE_MAXIMO : '']
+      .filter(Boolean).join(' ');
+    avisoFotos.textContent = aviso;
+    avisoFotos.hidden = !aviso;
+    // Se anuncia al llegar al máximo (si no lo anunció ya el aviso de exceso).
+    if (lleno && !estabaLleno && !mensajeExceso) anunciar(regionAnuncio, MENSAJE_MAXIMO);
+    estabaLleno = lleno;
+  }
 
   // ---------- Fotos ----------
 
@@ -71,6 +112,7 @@ export function crearEditorPasos(lista, botonAgregar, regionAnuncio, claveCifrad
     quitar.addEventListener('click', () => {
       paso.fotos = paso.fotos.filter((f) => f !== foto);
       foto.cancelada = true;
+      mensajeExceso = '';
       if (foto.vistaUrl) URL.revokeObjectURL(foto.vistaUrl);
       pintar({ clave: paso.clave, accion: 'subir-foto' });
       anunciar(regionAnuncio, 'Foto quitada.');
@@ -90,20 +132,26 @@ export function crearEditorPasos(lista, botonAgregar, regionAnuncio, claveCifrad
     paso.fotos.push(foto);
     pintar();
     try {
+      // El boleto se pide en paralelo con la compresión; varias fotos comparten la misma solicitud.
+      const boletoListo = prepararBoleto();
+      boletoListo.catch(() => { /* se informa abajo, al esperarlo */ });
       const { blob } = await comprimirFoto(archivo);
       if (foto.cancelada) return;
       foto.vistaUrl = URL.createObjectURL(blob);
       foto.estado = 'subiendo';
       foto.progreso = 0.1;
       actualizarFoto(paso, foto);
-      const resultado = await subirFoto(blob, {
+      await boletoListo;
+      if (foto.cancelada) return;
+      const resultado = await conBoleto((boleto) => subirFoto(blob, {
         clave: claveCifrado,
+        boleto,
         alProgresar(p) {
           foto.progreso = p;
           const barra = lista.querySelector(`[data-foto="${foto.clave}"] progress`);
           if (barra) barra.value = Math.round(p * 100);
         },
-      });
+      }));
       if (foto.cancelada) return;
       foto.id = resultado.id;
       foto.url = resultado.url;
@@ -115,6 +163,8 @@ export function crearEditorPasos(lista, botonAgregar, regionAnuncio, claveCifrad
       foto.estado = 'error';
       foto.mensaje = error?.mensaje || error?.message || 'No se pudo subir la foto. Puedes seguir sin ella.';
       if (error?.codigo === 'sin_conexion') foto.mensaje = 'No se pudo subir (sin conexión). Puedes quitarla y seguir.';
+      // 429 de POST /fotos: cupo diario por conexión. Sin reintento (§15.5).
+      if (error?.codigo === 'demasiadas_solicitudes' && error.origen !== 'boleto') foto.mensaje = MENSAJE_CUPO_DIARIO;
       actualizarFoto(paso, foto);
     }
   }
@@ -122,23 +172,29 @@ export function crearEditorPasos(lista, botonAgregar, regionAnuncio, claveCifrad
   function alElegirArchivos(paso, entrada) {
     const archivos = [...(entrada.files ?? [])];
     entrada.value = '';
+    if (!archivos.length) return;
     const libresPaso = LIMITES.fotosPorPaso.max - paso.fotos.length;
-    const libresTotal = LIMITES.fotosTotales.max - fotosTotales();
+    const libresTotal = MAX_FOTOS - fotosTotales();
     const cupo = Math.max(0, Math.min(libresPaso, libresTotal));
+    mensajeExceso = '';
     if (archivos.length > cupo) {
-      anunciar(regionAnuncio, cupo === 0
-        ? 'Ya no caben más fotos.'
-        : `Solo se agregaron ${cupo} foto(s): máximo ${LIMITES.fotosPorPaso.max} por paso y ${LIMITES.fotosTotales.max} en total.`);
+      mensajeExceso = cupo === 0
+        ? MENSAJE_MAXIMO
+        : `Solo se agregaron ${cupo} foto(s): máximo ${MAX_FOTOS} por propuesta.`;
+      const llenara = fotosTotales() + cupo >= MAX_FOTOS && !mensajeExceso.includes(MENSAJE_MAXIMO);
+      anunciar(regionAnuncio, llenara ? `${mensajeExceso} ${MENSAJE_MAXIMO}` : mensajeExceso);
     }
     archivos.slice(0, cupo).forEach((archivo) => procesarFoto(paso, archivo));
+    actualizarResumenFotos();
   }
 
   function actualizarEntradasFotos() {
     const total = fotosTotales();
     for (const paso of pasos) {
       const entrada = lista.querySelector(`[data-paso="${paso.clave}"] input[type="file"]`);
-      if (entrada) entrada.disabled = paso.fotos.length >= LIMITES.fotosPorPaso.max || total >= LIMITES.fotosTotales.max;
+      if (entrada) entrada.disabled = paso.fotos.length >= LIMITES.fotosPorPaso.max || total >= MAX_FOTOS;
     }
+    actualizarResumenFotos();
   }
 
   // ---------- Pasos ----------
@@ -246,7 +302,7 @@ export function crearEditorPasos(lista, botonAgregar, regionAnuncio, claveCifrad
                 crear('span', { clase: 'boton boton-secundario boton-chico', texto: '📷 Agregar fotos' }),
               ],
             }),
-            crear('span', { clase: 'ayuda', texto: ` Hasta ${LIMITES.fotosPorPaso.max} por paso. Se optimizan y se les quita la ubicación.` }),
+            crear('span', { clase: 'ayuda', texto: ' Se optimizan y se les quita la ubicación.' }),
           ],
         }),
       ],

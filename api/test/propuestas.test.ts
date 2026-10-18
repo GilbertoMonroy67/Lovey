@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LIMITES } from '../../js/limites.js';
-import { exigirHumano, verificarTurnstile } from '../src/turnstile';
+import { configTurnstile, exigirHumano, hostTurnstilePermitido, SECRETOS_PRUEBA, verificarTurnstile } from '../src/turnstile';
 import { CIFRADO, crearPropuesta, crearPropuestaV1, json, pedir, propuestaValida, subirFoto } from './ayuda';
 
 async function crear(cuerpo: unknown) {
@@ -55,7 +55,7 @@ describe('POST /propuestas (v2 cifrada)', () => {
     ['cifrado con caracteres fuera de base64url', { cifrado: CIFRADO(100) + '+/=' }, 'cifrado'],
     ['cifrado demasiado corto', { cifrado: CIFRADO(39) }, 'cifrado'],
     ['cifrado demasiado largo', { cifrado: CIFRADO(LIMITES.cifradoPropuesta + 1) }, 'cifrado'],
-    ['11 fotos', { fotos: Array.from({ length: 11 }, (_, i) => `f_AAAAAAAAAAAAAA${String(i).padStart(2, '0')}`) }, 'fotos'],
+    ['4 fotos', { fotos: Array.from({ length: 4 }, (_, i) => `f_AAAAAAAAAAAAAA${String(i).padStart(2, '0')}`) }, 'fotos'],
     ['id de foto con formato malo', { fotos: ['foto1'] }, 'fotos.0'],
     ['foto repetida', { fotos: ['f_AAAAAAAAAAAAAAAA', 'f_AAAAAAAAAAAAAAAA'] }, 'fotos'],
     ['avisos con campos extra', { avisos: { push: true, tema: 'elegido-por-mi' } }, 'avisos'],
@@ -150,35 +150,74 @@ describe('DELETE /propuestas/:id', () => {
 });
 
 describe('Turnstile (protección contra bots)', () => {
-  const respuesta = (exito: boolean) =>
-    (async () => new Response(JSON.stringify({ success: exito }), { status: 200 })) as unknown as typeof fetch;
+  const CFG = { origenes: 'https://ejemplo.github.io' };
+  const respuesta = (exito: boolean, hostname: unknown = 'ejemplo.github.io') =>
+    (async () => new Response(JSON.stringify({ success: exito, hostname }), { status: 200 })) as unknown as typeof fetch;
   const conToken = (token?: string) =>
     new Request('https://api.test/api/v1/propuestas', { method: 'POST', headers: token ? { 'X-Turnstile-Token': token } : {} });
 
   it('sin secreto configurado no se verifica nada', async () => {
-    await expect(exigirHumano(conToken(), undefined)).resolves.toBeUndefined();
+    await expect(exigirHumano(conToken(), undefined, CFG)).resolves.toBeUndefined();
   });
 
   it('con secreto: sin token o con token rechazado → 403 verificacion_bot; válido → pasa', async () => {
-    await expect(exigirHumano(conToken(), 'secreto', respuesta(true))).rejects.toMatchObject({ estado: 403, codigo: 'verificacion_bot' });
-    await expect(exigirHumano(conToken('malo'), 'secreto', respuesta(false))).rejects.toMatchObject({ codigo: 'verificacion_bot' });
-    await expect(exigirHumano(conToken('bueno'), 'secreto', respuesta(true))).resolves.toBeUndefined();
+    await expect(exigirHumano(conToken(), 'secreto', CFG, respuesta(true))).rejects.toMatchObject({ estado: 403, codigo: 'verificacion_bot' });
+    await expect(exigirHumano(conToken('malo'), 'secreto', CFG, respuesta(false))).rejects.toMatchObject({ codigo: 'verificacion_bot' });
+    await expect(exigirHumano(conToken('bueno'), 'secreto', CFG, respuesta(true))).resolves.toBeUndefined();
+  });
+
+  it('H8: success con un hostname ajeno, vacío o ausente → 403 verificacion_bot', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const host of ['otro-sitio.example', 'ejemplo.github.io.evil.com', '', null, 42]) {
+      await expect(exigirHumano(conToken('t'), 'secreto', CFG, respuesta(true, host))).rejects.toMatchObject({ estado: 403, codigo: 'verificacion_bot' });
+    }
+    const sinCampo = (async () => new Response('{"success":true}')) as unknown as typeof fetch;
+    await expect(exigirHumano(conToken('t'), 'secreto', CFG, sinCampo)).rejects.toMatchObject({ codigo: 'verificacion_bot' });
+    // Sin ORIGENES_PERMITIDOS no hay ningún host válido (falla cerrada).
+    await expect(exigirHumano(conToken('t'), 'secreto', {}, respuesta(true))).rejects.toMatchObject({ codigo: 'verificacion_bot' });
+    aviso.mockRestore();
+  });
+
+  it('H8: el host se compara sin distinguir mayúsculas y con varios orígenes en la lista', async () => {
+    const cfg = { origenes: 'https://otro.dev, https://ejemplo.github.io/' };
+    await expect(exigirHumano(conToken('t'), 'secreto', cfg, respuesta(true, 'Ejemplo.GitHub.io'))).resolves.toBeUndefined();
+    await expect(exigirHumano(conToken('t'), 'secreto', cfg, respuesta(true, 'otro.dev'))).resolves.toBeUndefined();
+  });
+
+  it('H8: localhost solo con PERMITIR_LOCALHOST="1"', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const host of ['localhost', '127.0.0.1']) {
+      await expect(exigirHumano(conToken('t'), 'secreto', { ...CFG, permitirLocal: true }, respuesta(true, host))).resolves.toBeUndefined();
+      await expect(exigirHumano(conToken('t'), 'secreto', CFG, respuesta(true, host))).rejects.toMatchObject({ codigo: 'verificacion_bot' });
+    }
+    expect(configTurnstile({ ORIGENES_PERMITIDOS: 'https://a.io', PERMITIR_LOCALHOST: '1' })).toEqual({ origenes: 'https://a.io', permitirLocal: true });
+    expect(configTurnstile({ PERMITIR_LOCALHOST: 'true' }).permitirLocal).toBe(false);
+    aviso.mockRestore();
+  });
+
+  it('H8: "example.com" solo se acepta con los secretos de prueba documentados de Cloudflare', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(exigirHumano(conToken('t'), SECRETOS_PRUEBA[0], CFG, respuesta(true, 'example.com'))).resolves.toBeUndefined();
+    await expect(exigirHumano(conToken('t'), 'secreto-real', CFG, respuesta(true, 'example.com'))).rejects.toMatchObject({ codigo: 'verificacion_bot' });
+    await expect(exigirHumano(conToken('t'), `${SECRETOS_PRUEBA[0]} `, CFG, respuesta(true, 'example.com'))).rejects.toMatchObject({ codigo: 'verificacion_bot' });
+    expect(hostTurnstilePermitido('example.com', '1x0000000000000000000000000000000AA', {})).toBe(true);
+    aviso.mockRestore();
   });
 
   it('si siteverify no responde, falla cerrada', async () => {
     const roto = (async () => {
       throw new TypeError('sin red');
     }) as unknown as typeof fetch;
-    expect(await verificarTurnstile('secreto', 'token', '1.2.3.4', roto)).toBe(false);
+    expect(await verificarTurnstile('secreto', 'token', '1.2.3.4', CFG, roto)).toBe(false);
   });
 
   it('manda secreto, token e IP a siteverify', async () => {
     let cuerpo: FormData | null = null;
     const falso = (async (_url: string, init: RequestInit) => {
       cuerpo = init.body as FormData;
-      return new Response('{"success":true}');
+      return new Response('{"success":true,"hostname":"ejemplo.github.io"}');
     }) as unknown as typeof fetch;
-    expect(await verificarTurnstile('s3cr3t', 'tok', '1.2.3.4', falso)).toBe(true);
+    expect(await verificarTurnstile('s3cr3t', 'tok', '1.2.3.4', CFG, falso)).toBe(true);
     expect(cuerpo!.get('secret')).toBe('s3cr3t');
     expect(cuerpo!.get('response')).toBe('tok');
     expect(cuerpo!.get('remoteip')).toBe('1.2.3.4');

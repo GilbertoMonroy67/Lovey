@@ -27,11 +27,12 @@
 
   "vars": {
     // Orígenes del frontend separados por comas (ej. "https://usuario.github.io").
-    // localhost y 127.0.0.1 se aceptan siempre (ver src/cors.ts).
+    // localhost y 127.0.0.1 solo se aceptan si PERMITIR_LOCALHOST="1" (únicamente en .dev.vars; ver src/cors.ts).
     "ORIGENES_PERMITIDOS": "https://gilbertomonroy67.github.io",
     // Servidor ntfy para los avisos push opcionales. Vacío = desactivado.
     "NTFY_BASE": "https://ntfy.sh"
   }
   // Secretos (no van aquí): SAL_IP → `npx wrangler secret put SAL_IP`; en local, archivo .dev.vars.
+  // La llave de los boletos de subida (v2.2) se deriva de SAL_IP con HKDF: no hay secreto nuevo.
   // Opcional: TURNSTILE_SECRETO → `npx wrangler secret put TURNSTILE_SECRETO` (protección contra bots).
 }

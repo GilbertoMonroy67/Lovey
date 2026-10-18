@@ -15,6 +15,10 @@ export type CodigoError =
   | 'capacidad_agotada'
   | 'verificacion_bot'
   | 'https_requerido'
+  | 'boleto_ausente'
+  | 'boleto_invalido'
+  | 'boleto_vencido'
+  | 'boleto_agotado'
   | 'interno';
 
 export interface DetalleError {
@@ -36,6 +40,11 @@ const MENSAJES: Record<CodigoError, string> = {
   capacidad_agotada: 'Hoy se alcanzó el límite del servicio. Inténtalo mañana.',
   verificacion_bot: 'No pudimos verificar que eres una persona. Recarga la página e inténtalo de nuevo.',
   https_requerido: 'Esta API solo acepta conexiones seguras (HTTPS).',
+  // Boleto de subida (contrato v2.2, §15.5).
+  boleto_ausente: 'Falta la verificación de seguridad para subir fotos.',
+  boleto_invalido: 'La verificación de seguridad no es válida. Vuelve a intentarlo.',
+  boleto_vencido: 'La verificación de seguridad venció. Vuelve a intentarlo.',
+  boleto_agotado: 'Esta verificación ya se usó por completo.',
   interno: 'Ocurrió un error inesperado. Inténtalo de nuevo.',
 };
 

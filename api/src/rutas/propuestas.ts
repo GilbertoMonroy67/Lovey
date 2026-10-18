@@ -2,12 +2,13 @@
 // v2: el contenido llega cifrado de extremo a extremo; el servidor guarda el sobre tal cual.
 import { Hono } from 'hono';
 import { LIMITES } from '../../../js/limites.js';
+import { CABECERA_BOLETO, consumirBoleto, llaveDelEntorno, verificarBoleto, type Boleto } from '../boleto';
 import { cargarPropuesta, iso, urlFoto, verificarAdmin } from '../comun';
 import { ErrorApi } from '../errores';
 import { esCifrada, esquemaPropuesta, leerJson, validar, type DatosPropuesta, type DatosPropuestaV2 } from '../esquemas';
 import { nuevaClaveAdmin, nuevoIdPropuesta, nuevoTemaNtfy, sha256Hex } from '../ids';
-import { hashIp, limitar } from '../limite-tasa';
-import { exigirHumano } from '../turnstile';
+import { consumirTopeGlobal, hashIp, limitar, limitarIp } from '../limite-tasa';
+import { configTurnstile, exigirHumano } from '../turnstile';
 import { MS_DIA, MS_HORA, type AppEnv } from '../tipos';
 
 export const rutasPropuestas = new Hono<AppEnv>();
@@ -15,8 +16,21 @@ export const rutasPropuestas = new Hono<AppEnv>();
 rutasPropuestas.post('/', async (c) => {
   const ahora = Date.now();
   const ipHash = await hashIp(c.req.raw, c.env.SAL_IP);
-  await limitar(c.env.DB, 'propuestas', ipHash, ahora);
-  await exigirHumano(c.req.raw, c.env.TURNSTILE_SECRETO);
+  // Orden (auditoría 2026-10-18, H1, y contrato v2.2 §15.4): límite por IP → verificación humana
+  // (boleto o Turnstile) → Zod → fotos → uso del boleto → tope global.
+  // El límite por IP va primero para que nadie haga llamar a siteverify sin freno; el tope global va al
+  // final para que las solicitudes rechazadas (bots sin token, cuerpos inválidos) no lo gasten.
+  await limitarIp(c.env.DB, 'propuestas', ipHash, ahora);
+
+  // Con Turnstile activo, el mismo boleto de las fotos sirve de verificación (los tokens son de un solo
+  // uso) y entonces no se llama a siteverify. Sin boleto, Turnstile como antes (frontend viejo en caché).
+  // Sin TURNSTILE_SECRETO no se exige nada y X-Boleto se ignora: ni se verifica ni se consume.
+  let boleto: Boleto | null = null;
+  if (c.env.TURNSTILE_SECRETO) {
+    const textoBoleto = c.req.header(CABECERA_BOLETO)?.trim();
+    if (textoBoleto) boleto = await verificarBoleto(textoBoleto, await llaveDelEntorno(c.env), ahora);
+    else await exigirHumano(c.req.raw, c.env.TURNSTILE_SECRETO, configTurnstile(c.env));
+  }
 
   const { avisos, ...sobre } = validar(esquemaPropuesta, await leerJson(c.req.raw));
   // Se arma explícitamente: solo estos campos llegan a D1.
@@ -40,6 +54,11 @@ rutasPropuestas.post('/', async (c) => {
       throw new ErrorApi(422, 'foto_invalida', undefined, invalidas.map((id) => ({ campo: `fotos.${id}`, mensaje: 'Foto inexistente, ya usada o expirada.' })));
     }
   }
+
+  // Un boleto crea una sola propuesta; se consume después de validar para que un 422 no obligue a
+  // resolver Turnstile otra vez (§15.4).
+  if (boleto) await consumirBoleto(c.env.DB, 'boleto-prop', boleto);
+  await consumirTopeGlobal(c.env.DB, 'propuestas', ahora);
 
   const id = nuevoIdPropuesta();
   const claveAdmin = nuevaClaveAdmin();

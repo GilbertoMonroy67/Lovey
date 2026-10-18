@@ -133,8 +133,6 @@
       </section>
 
       <div class="resumen-errores" id="resumen-errores" role="alert" tabindex="-1" hidden></div>
-      <!-- Verificación anti-bots (Cloudflare Turnstile): solo aparece si está configurada en js/config.js. -->
-      <div class="caja-turnstile" id="turnstile" hidden></div>
 
       <div class="acciones-generador">
         <button type="button" class="boton boton-fantasma" id="boton-vista-previa">👀 Vista previa</button>
@@ -183,6 +181,13 @@
       <ul class="lista-mis-propuestas" id="lista-mis-propuestas"></ul>
     </section>
   </main>
+
+  <!-- Verificación anti-bots (Cloudflare Turnstile, contrato §15.6). Lo maneja js/boleto.js: es invisible
+       y solo aparece como panel fijo abajo cuando Cloudflare pide interacción (al subir fotos o al crear). -->
+  <section class="panel-verificacion" id="turnstile" aria-labelledby="t-verificacion" hidden>
+    <h2 class="panel-verificacion-titulo" id="t-verificacion">Verificación de seguridad</h2>
+    <p class="ayuda">Confirma que eres una persona para subir tus fotos y crear el enlace.</p>
+  </section>
 
   <footer class="pie contenedor">
     <p>Hecho con 💖. No hace falta registrarse. Las sorpresas se borran solas a los 30 días.</p>

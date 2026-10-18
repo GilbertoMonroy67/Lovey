@@ -2,6 +2,10 @@
 # En producción: npx wrangler secret put SAL_IP
 SAL_IP=cambia-esto-por-un-texto-aleatorio-largo
 
+# Solo en desarrollo: acepta http://localhost y http://127.0.0.1 como origen CORS (frontend local).
+# Nunca la definas en producción (ni en wrangler.jsonc ni con `wrangler secret put`).
+PERMITIR_LOCALHOST="1"
+
 # Opcional: protección contra bots con Cloudflare Turnstile (ver docs/arquitectura.md §9, paso 9b).
 # Sin esta variable no se verifica nada. Clave de prueba de Cloudflare que siempre pasa:
 # TURNSTILE_SECRETO=1x0000000000000000000000000000000AA

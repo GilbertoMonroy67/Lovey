@@ -28,4 +28,6 @@ export const SONDEO_MS = 5000;
 // La "site key" es PÚBLICA por diseño (el navegador la necesita y solo funciona en el hostname
 // registrado, gilbertomonroy67.github.io). La "secret key" NUNCA va en el repo: vive solo en el
 // Worker (`npx wrangler secret put TURNSTILE_SECRETO`). Vacío = desactivado. Solo se usa en modo 'api'.
-export const TURNSTILE_SITIO = '0x4AAAAAAFUJ_kJNXNOvPkKl';
+// En localhost se usa la site key de PRUEBA de Cloudflare (siempre pasa, sin interacción), para probar
+// el boleto de subida contra `wrangler dev` con TURNSTILE_SECRETO=1x0000000000000000000000000000000AA (§15.9).
+export const TURNSTILE_SITIO = ES_LOCAL ? '1x00000000000000000000AA' : '0x4AAAAAAFUJ_kJNXNOvPkKl';

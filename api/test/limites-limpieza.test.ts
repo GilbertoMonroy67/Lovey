@@ -20,7 +20,7 @@ async function capturar(p: Promise<unknown>): Promise<ErrorApi | null> {
 describe('límites de tasa (reloj simulado)', () => {
   it('ventana fija por IP: 60 eventos por minuto, el 61 → 429 con Retry-After', async () => {
     const t0 = Date.UTC(2030, 0, 1, 12, 0, 10);
-    for (let i = 0; i < REGLAS_IP.eventos.maximo; i++) await limitar(env.DB, 'eventos', 'ipA', t0);
+    for (let i = 0; i < REGLAS_IP.eventos!.maximo; i++) await limitar(env.DB, 'eventos', 'ipA', t0);
     const e = await capturar(limitar(env.DB, 'eventos', 'ipA', t0));
     expect(e?.estado).toBe(429);
     expect(e?.codigo).toBe('demasiadas_solicitudes');
@@ -43,7 +43,7 @@ describe('límites de tasa (reloj simulado)', () => {
 
   it('HTTP: la propuesta 11 de la misma IP en una hora → 429 con cabecera Retry-After', async () => {
     const ip = nuevaIp();
-    for (let i = 0; i < REGLAS_IP.propuestas.maximo; i++) {
+    for (let i = 0; i < REGLAS_IP.propuestas!.maximo; i++) {
       expect((await pedir('/propuestas', json(propuestaValida(), { ip }))).status).toBe(201);
     }
     const r = await pedir('/propuestas', json(propuestaValida(), { ip }));

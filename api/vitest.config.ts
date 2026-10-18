@@ -13,6 +13,8 @@ export default defineConfig(async () => {
             TEST_MIGRATIONS: migraciones,
             SAL_IP: 'sal-de-pruebas',
             ORIGENES_PERMITIDOS: 'https://ejemplo.github.io',
+            // Como en producción: localhost no es un origen CORS válido (anula el PERMITIR_LOCALHOST de .dev.vars).
+            PERMITIR_LOCALHOST: '',
             NTFY_BASE: '', // sin salidas a internet en los tests; ntfy se prueba con un fetch simulado
           },
         },

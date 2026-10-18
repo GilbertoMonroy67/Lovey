@@ -4,6 +4,7 @@ import { VERSION_PROPUESTA } from '../../js/limites.js';
 import { cors } from './cors';
 import { ErrorApi, manejarError, respuestaError } from './errores';
 import { limpiar } from './limpieza';
+import { rutasBoletos } from './rutas/boletos';
 import { rutasEventos } from './rutas/eventos';
 import { rutasFotos } from './rutas/fotos';
 import { rutasPropuestas } from './rutas/propuestas';
@@ -47,6 +48,7 @@ app.use('*', async (c, next) => {
 
 const api = new Hono<AppEnv>();
 api.get('/salud', (c) => c.json({ ok: true, version: VERSION_PROPUESTA }));
+api.route('/boletos', rutasBoletos);
 api.route('/fotos', rutasFotos);
 api.route('/propuestas', rutasPropuestas);
 api.route('/propuestas', rutasEventos);

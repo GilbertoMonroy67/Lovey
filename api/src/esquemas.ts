@@ -44,6 +44,8 @@ export const esquemaPropuesta = z
   .object({
     v: z.literal(VERSION_PROPUESTA, { error: `La versión debe ser ${VERSION_PROPUESTA}.` }),
     cifrado: cifrado(LIMITES.cifradoPropuesta),
+    // v2.2: máximo 3 fotos al crear. Las v2 anteriores con más fotos se siguen leyendo: la lectura
+    // (GET /propuestas/:id) no pasa por este esquema.
     fotos: z.array(idFoto).max(LIMITES.fotosTotales.max, `Máximo ${LIMITES.fotosTotales.max} fotos en total.`).default([]),
     avisos: z.object({ push: z.boolean().default(false) }).strict().optional().default({ push: false }),
   })

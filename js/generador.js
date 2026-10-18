@@ -2,10 +2,10 @@
 // avisos, vista previa y creación del enlace vía js/api.js.
 
 import { crearPropuesta, generarClave, MODO } from './api.js';
+import { conBoleto, iniciarVerificacion, olvidarBoleto } from './boleto.js';
 import { CELEBRACIONES, TITULO_CELEBRACION } from './celebraciones.js';
 import { crearEditorPasos } from './editor-pasos.js';
 import { LIMITES, PLANTILLA_POR_DEFECTO } from './limites.js';
-import { TURNSTILE_SITIO } from './config.js';
 import { cargarTodas, obtenerPlantilla, PLANTILLAS } from './plantillas.js';
 import {
   anunciar, copiarTexto, crear, enlacePregunta, enlaceRespuestas, escribirAlmacen, formatearFechaHora,
@@ -30,36 +30,6 @@ const personalizadas = []; // [{ etiqueta, emoji }]
 // Llave de cifrado de esta propuesta: se genera aquí, cifra el contenido y las fotos, y solo
 // sale del navegador dentro del fragmento #c= de los enlaces. "Crear otra" recarga y crea una nueva.
 const claveCifrado = generarClave();
-
-// ---------- Protección contra bots (Turnstile, opcional) ----------
-
-const turnstileActivo = Boolean(TURNSTILE_SITIO) && MODO === 'api';
-let tokenTurnstile = '';
-let widgetTurnstile = null;
-
-function iniciarTurnstile() {
-  if (!turnstileActivo) return;
-  const caja = $('turnstile');
-  caja.hidden = false;
-  window.alCargarTurnstile = () => {
-    widgetTurnstile = window.turnstile.render(caja, {
-      sitekey: TURNSTILE_SITIO,
-      language: 'es',
-      callback: (token) => { tokenTurnstile = token; },
-      'expired-callback': () => { tokenTurnstile = ''; },
-      'error-callback': () => { tokenTurnstile = ''; },
-    });
-  };
-  const script = document.createElement('script');
-  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=alCargarTurnstile';
-  script.async = true;
-  document.head.append(script);
-}
-
-function reiniciarTurnstile() {
-  tokenTurnstile = '';
-  if (widgetTurnstile !== null) window.turnstile?.reset(widgetTurnstile);
-}
 
 // ---------- Datos básicos ----------
 
@@ -350,9 +320,6 @@ async function crear_(editor) {
   mostrarErrores([]);
   const errores = validarTodo(editor);
   if (editor.fotosPendientes()) errores.push({ mensaje: 'Espera a que terminen de subir las fotos.' });
-  if (turnstileActivo && !tokenTurnstile) {
-    errores.push({ mensaje: 'Espera a que termine la verificación de seguridad (el recuadro de abajo).' });
-  }
   if (errores.length) { mostrarErrores(errores); return; }
 
   const textoOriginal = boton.textContent;
@@ -360,7 +327,9 @@ async function crear_(editor) {
   boton.textContent = 'Creando…';
   try {
     const propuesta = construirPropuesta(editor);
-    const respuesta = await crearPropuesta(propuesta, { clave: claveCifrado, turnstile: tokenTurnstile });
+    // Mismo boleto que las fotos si sigue vigente (contrato §15.6); si no, se pide uno (Turnstile).
+    const respuesta = await conBoleto((boleto) => crearPropuesta(propuesta, { clave: claveCifrado, boleto }));
+    olvidarBoleto();
     guardarMiPropuesta({
       id: respuesta.id,
       claveAdmin: respuesta.claveAdmin,
@@ -373,7 +342,6 @@ async function crear_(editor) {
     const detalles = error?.codigo === 'validacion' ? erroresDelServidor(error, editor) : [];
     mostrarErrores(detalles.length ? detalles : [{ mensaje: error?.message || 'No se pudo crear el enlace. Inténtalo de nuevo.' }]);
   } finally {
-    if (turnstileActivo) reiniciarTurnstile(); // cada token sirve una sola vez
     boton.disabled = false;
     boton.textContent = textoOriginal;
   }
@@ -450,7 +418,7 @@ function iniciar() {
   pintarMisPropuestas();
 
   const editor = crearEditorPasos($('lista-pasos'), $('agregar-paso'), regionAnuncio, claveCifrado);
-  iniciarTurnstile();
+  iniciarVerificacion($('turnstile'));
 
   const contadorMensaje = () => {
     $('contador-mensaje').textContent = `${largo($('mensaje-final').value)} / ${LIMITES.mensajeFinal.max}`;

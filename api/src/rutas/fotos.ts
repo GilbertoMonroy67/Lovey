@@ -5,7 +5,8 @@ import { LIMITES, PATRONES } from '../../../js/limites.js';
 import { iso, urlFoto } from '../comun';
 import { ErrorApi } from '../errores';
 import { nuevoIdFoto } from '../ids';
-import { hashIp, limitar } from '../limite-tasa';
+import { CABECERA_BOLETO, consumirBoleto, llaveDelEntorno, verificarBoleto } from '../boleto';
+import { consumirCupoDiarioIp, consumirTopeGlobal, hashIp } from '../limite-tasa';
 import { MS_HORA, type AppEnv } from '../tipos';
 
 /** Detecta el tipo real por los bytes mágicos: JPEG (FF D8 FF) o WebP (RIFF....WEBP). */
@@ -31,9 +32,15 @@ export const rutasFotos = new Hono<AppEnv>();
 
 rutasFotos.post('/', async (c) => {
   const ahora = Date.now();
-  const ipHash = await hashIp(c.req.raw, c.env.SAL_IP);
-  await limitar(c.env.DB, 'fotos', ipHash, ahora);
+  // Orden (contrato v2.2, §15.3): boleto → forma (415/413) → uso del boleto → cupo diario por IP →
+  // tope global → R2. Los pasos 1 y 2 no tocan D1: lo rechazado no cuesta escrituras ni gasta cupos ajenos.
 
+  // 1. Boleto de subida (sin leer D1).
+  const textoBoleto = c.req.header(CABECERA_BOLETO)?.trim();
+  if (!textoBoleto) throw new ErrorApi(401, 'boleto_ausente');
+  const boleto = await verificarBoleto(textoBoleto, await llaveDelEntorno(c.env), ahora);
+
+  // 2. Tipo, tamaño y forma del sobre cifrado.
   const declarado = (c.req.header('Content-Type') ?? '').split(';')[0]!.trim().toLowerCase();
   if (declarado !== TIPO_CIFRADO) throw new ErrorApi(415, 'tipo_no_soportado');
   if (Number(c.req.header('Content-Length') ?? '0') > LIMITES.fotoCifradaBytes) {
@@ -48,6 +55,14 @@ rutasFotos.post('/', async (c) => {
     throw new ErrorApi(415, 'tipo_no_soportado');
   }
 
+  // 3–5. Contadores (condicionales), del recurso más caro para el atacante al más compartido. Si un paso
+  // posterior falla, los usos ya gastados no se devuelven (§15.3).
+  await consumirBoleto(c.env.DB, 'boleto', boleto);
+  const ipHash = await hashIp(c.req.raw, c.env.SAL_IP);
+  await consumirCupoDiarioIp(c.env.DB, 'fotos', ipHash, ahora);
+  await consumirTopeGlobal(c.env.DB, 'fotos', ahora);
+
+  // 6. R2 + fila en D1.
   const id = nuevoIdFoto();
   const r2Clave = `fotos/${id}`;
   await c.env.FOTOS.put(r2Clave, bytes, { httpMetadata: { contentType: TIPO_CIFRADO } });

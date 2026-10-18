@@ -17,6 +17,10 @@ export { ErrorApi };
 export { MODO };
 export { generarClave };
 
+// Errores por los que js/boleto.js descarta el boleto, pide otro y reintenta una vez (contrato §15.5).
+// El boleto es texto opaco para el frontend: no se decodifica ni se valida aquí.
+export const CODIGOS_BOLETO = Object.freeze(['boleto_ausente', 'boleto_invalido', 'boleto_vencido', 'boleto_agotado']);
+
 const TIMEOUT_MS = 15000;
 const TIMEOUT_FOTOS_MS = 60000;
 
@@ -44,11 +48,13 @@ async function errorDesdeRespuesta(respuesta) {
   );
 }
 
-async function pedir(ruta, { metodo = 'GET', cuerpo, clave, turnstile, timeout = TIMEOUT_MS } = {}) {
+async function pedir(ruta, { metodo = 'GET', cuerpo, clave, turnstile, boleto, timeout = TIMEOUT_MS } = {}) {
   const cabeceras = {};
   if (cuerpo !== undefined) cabeceras['Content-Type'] = 'application/json';
   if (clave) cabeceras.Authorization = `Bearer ${clave}`;
-  if (turnstile) cabeceras['X-Turnstile-Token'] = turnstile;
+  // Con boleto no hace falta el token de Turnstile (el Worker lo ignoraría): §15.4.
+  if (boleto) cabeceras['X-Boleto'] = boleto;
+  else if (turnstile) cabeceras['X-Turnstile-Token'] = turnstile;
   let respuesta;
   try {
     respuesta = await fetch(`${API_BASE}${ruta}`, {
@@ -75,13 +81,16 @@ async function pedir(ruta, { metodo = 'GET', cuerpo, clave, turnstile, timeout =
 // ---------- Implementación real ----------
 
 const real = {
-  subirFoto(blob, { alProgresar } = {}) {
+  obtenerBoleto: ({ turnstile } = {}) => pedir('/boletos', { metodo: 'POST', turnstile }),
+
+  subirFoto(blob, { boleto, alProgresar } = {}) {
     // XMLHttpRequest permite informar el progreso de la subida (fetch no).
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${API_BASE}/fotos`);
       xhr.timeout = TIMEOUT_FOTOS_MS;
       xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      if (boleto) xhr.setRequestHeader('X-Boleto', boleto);
       xhr.upload.onprogress = (e) => { if (e.lengthComputable) alProgresar?.(e.loaded / e.total); };
       xhr.onerror = () => reject(errorRed());
       xhr.ontimeout = () => reject(errorRed());
@@ -100,7 +109,8 @@ const real = {
     });
   },
 
-  crearPropuesta: (sobre, { turnstile } = {}) => pedir('/propuestas', { metodo: 'POST', cuerpo: sobre, turnstile }),
+  crearPropuesta: (sobre, { boleto, turnstile } = {}) =>
+    pedir('/propuestas', { metodo: 'POST', cuerpo: sobre, boleto, turnstile }),
 
   obtenerPropuesta: (id) => pedir(`/propuestas/${encodeURIComponent(id)}`),
 
@@ -154,22 +164,35 @@ function tipoImagen(b) {
 }
 
 /**
- * Comprime aparte (fotos.js); aquí se cifra con la llave de la propuesta y se sube.
+ * Pide un boleto de subida (contrato §15.1). Lo usa solo js/boleto.js.
+ * @param {{turnstile?: string}} opciones token de Turnstile, si está activo
+ * @returns {Promise<{boleto: string, expiraEn: string, fotos: number}>}
+ */
+export async function obtenerBoleto({ turnstile } = {}) {
+  const r = await impl.obtenerBoleto({ turnstile });
+  if (typeof r?.boleto !== 'string' || !r.boleto) {
+    throw new ErrorApi('interno', 'La respuesta del servidor no es válida.', 0);
+  }
+  return r;
+}
+
+/**
+ * Comprime aparte (fotos.js); aquí se cifra con la llave de la propuesta y se sube con el boleto.
  * @param {Blob} blob foto ya comprimida (WebP/JPEG)
- * @param {{clave: string, alProgresar?: (p: number) => void}} opciones
+ * @param {{clave: string, boleto?: string, alProgresar?: (p: number) => void}} opciones
  * @returns {Promise<{id: string, url: string, expiraEn?: string}>}
  */
-export async function subirFoto(blob, { clave, alProgresar } = {}) {
+export async function subirFoto(blob, { clave, boleto, alProgresar } = {}) {
   const cifrada = await cifrarBytes(clave, new Uint8Array(await blob.arrayBuffer()), CONTEXTO.foto);
-  return impl.subirFoto(new Blob([cifrada], { type: 'application/octet-stream' }), { alProgresar });
+  return impl.subirFoto(new Blob([cifrada], { type: 'application/octet-stream' }), { boleto, alProgresar });
 }
 
 /**
  * Valida la propuesta en claro (contrato §3.3), la cifra y manda solo el sobre.
  * @param {object} propuesta modelo §3.1 en claro
- * @param {{clave: string, turnstile?: string}} opciones
+ * @param {{clave: string, boleto?: string, turnstile?: string}} opciones X-Boleto si hay boleto; si no, X-Turnstile-Token
  */
-export async function crearPropuesta(propuesta, { clave, turnstile } = {}) {
+export async function crearPropuesta(propuesta, { clave, boleto, turnstile } = {}) {
   const { datos, detalles } = validarPropuesta(propuesta);
   if (detalles.length) throw new ErrorApi('validacion', 'Revisa los datos marcados.', 422, detalles);
   const sobre = {
@@ -178,7 +201,7 @@ export async function crearPropuesta(propuesta, { clave, turnstile } = {}) {
     fotos: datos.pasos.flatMap((p) => p.fotos.map((f) => f.id)),
     avisos: { push: propuesta?.avisos?.push === true },
   };
-  return impl.crearPropuesta(sobre, { turnstile });
+  return impl.crearPropuesta(sobre, { boleto, turnstile });
 }
 
 /**

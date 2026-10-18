@@ -18,8 +18,15 @@ export const LIMITES = Object.freeze({
   nombre: { min: 1, max: 40 },
   pasos: { min: 1, max: 5 },
   textoPaso: { min: 1, max: 280 },
+  // v2.2 (2026-10-18): como máximo 3 fotos en TOTAL por propuesta, repartidas como se quiera entre
+  // los pasos (antes 10). Solo se aplica al crear: las propuestas v2 anteriores con más fotos se siguen
+  // leyendo (al leer solo se recorta por paso con fotosPorPaso).
   fotosPorPaso: { max: 3 },
-  fotosTotales: { max: 10 },
+  fotosTotales: { max: 3 },
+  // Boleto de subida (contrato §15): lo emite POST /boletos tras Turnstile; vale para estas fotos
+  // y para crear una propuesta, durante estos minutos.
+  fotosPorBoleto: 3,
+  minutosBoleto: 60,
   altFoto: { max: 100 },
   pregunta: { min: 1, max: 120 },
   tituloCelebracion: { min: 1, max: 60 },

@@ -656,8 +656,42 @@ button.chip-filtro[aria-pressed="true"] { background: var(--color-texto); color:
 .agregar-opcion { display: grid; gap: 0.5rem; grid-template-columns: 4.5rem 1fr auto; align-items: end; }
 
 /* Barra de acciones del generador */
-.caja-turnstile { display: flex; justify-content: center; margin-block: 1rem 0; min-height: 65px; }
-.caja-turnstile[hidden] { display: none; }
+/* Verificación de seguridad (Turnstile, contrato §15.6): invisible pero renderizada (el iframe debe
+   cargar), y panel fijo abajo, dentro del viewport, solo cuando Cloudflare pide interacción. */
+.panel-verificacion[hidden] { display: none; }
+.panel-verificacion:not(.visible) {
+  position: fixed; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); opacity: 0; pointer-events: none;
+}
+.panel-verificacion.visible {
+  position: fixed; z-index: 60;
+  inset-inline: max(0.75rem, env(safe-area-inset-left)) max(0.75rem, env(safe-area-inset-right));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  max-width: 26rem; margin-inline: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 2px solid var(--color-primario); border-radius: 16px;
+  background: var(--color-superficie); color: var(--color-texto);
+  box-shadow: var(--sombra);
+  text-align: center;
+  animation: aparecer-panel 0.25s ease-out;
+}
+.panel-verificacion-titulo { margin: 0; font-size: 1.05rem; }
+.panel-verificacion .ayuda { margin: 0; }
+.panel-verificacion-widget { min-height: 65px; display: flex; justify-content: center; }
+@keyframes aparecer-panel { from { transform: translateY(1rem); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .panel-verificacion.visible { animation: none; } }
+
+/* Límite de fotos por propuesta (contrato §15.6) */
+.resumen-fotos { display: flex; flex-direction: column; gap: 0.35rem; margin-block: 0 0.75rem; }
+.resumen-fotos p { margin: 0; }
+.contador-fotos { font-weight: 700; font-variant-numeric: tabular-nums; }
+.contador-fotos.lleno { color: var(--color-primario); }
+.aviso-fotos {
+  padding: 0.5rem 0.8rem; border-radius: 12px;
+  background: var(--color-aviso); color: var(--color-aviso-texto); font-size: 0.92rem;
+}
+.aviso-fotos[hidden] { display: none; }
 .acciones-generador { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; margin-block: 1.5rem 0.5rem; }
 .acciones-generador .boton { flex: 1 1 12rem; }
 .resumen-errores {
